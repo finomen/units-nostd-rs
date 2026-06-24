@@ -50,15 +50,13 @@ jobs:
         env:
           NEW_VERSION: ${{ steps.changelog.outputs.version }}
         run: |
-          sed -i "0,/^version = /s/^version = \"[^\"]*\"/version = \"$NEW_VERSION\"/" sen6x-driver/Cargo.toml
-          sed -i "0,/^version = /s/^version = \"[^\"]*\"/version = \"$NEW_VERSION\"/" sen6x-macros/Cargo.toml
-          sed -i "s/sen6x-macros = { version = \"[^\"]*\"/sen6x-macros = { version = \"$NEW_VERSION\"/" sen6x-driver/Cargo.toml
+          sed -i "0,/^version = /s/^version = \"[^\"]*\"/version = \"$NEW_VERSION\"/" units-nostd/Cargo.toml
 
       - name: Commit release changes
         env:
           NEW_VERSION: ${{ steps.changelog.outputs.version }}
         run: |
-          git add sen6x-driver/Cargo.toml sen6x-macros/Cargo.toml CHANGELOG.md
+          git add units-nostd/Cargo.toml CHANGELOG.md
           git commit -m "chore: bump version to $NEW_VERSION"
 
       - name: Push release branch
