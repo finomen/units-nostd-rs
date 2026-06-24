@@ -78,7 +78,7 @@ modules they are built from. Enable everything at once with the `full` feature.
 
 - [generic_const_exprs](https://doc.rust-lang.org/beta/unstable-book/language-features/generic-const-exprs.html) Tracking issue [#76560](https://github.com/rust-lang/rust/issues/76560)
 - [const_ops](https://doc.rust-lang.org/beta/unstable-book/library-features/const-ops.html) Tracking issue [#143802](https://github.com/rust-lang/rust/issues/143802)
-- [const_cmp](0https://doc.rust-lang.org/beta/unstable-book/library-features/const-cmp.html) Tracking issue  [#143800](https://github.com/rust-lang/rust/issues/143800)
+- [const_cmp](https://doc.rust-lang.org/beta/unstable-book/library-features/const-cmp.html) Tracking issue  [#143800](https://github.com/rust-lang/rust/issues/143800)
 - [adt_const_params](https://doc.rust-lang.org/beta/unstable-book/language-features/adt-const-params.html) Tracking issue [#95174](https://github.com/rust-lang/rust/issues/95174)
 - [const_param_ty_trait](https://doc.rust-lang.org/beta/unstable-book/library-features/const-param-ty-trait.html) Tracking issue [#95174](https://github.com/rust-lang/rust/issues/95174)
 - [min_adt_const_params](https://doc.rust-lang.org/beta/unstable-book/language-features/min-adt-const-params.html) Tracking issue [#154042](https://github.com/rust-lang/rust/issues/154042)
@@ -99,7 +99,6 @@ units-nostd = { version = "0.0.1", features = ["full"] }
 
 This project was created with the assistance of Claude and Gemini. Primarily, GenAI is used to:
 - Generate documentation
-- Check code against the datasheet
 - Fix warnings and clean up code
 
 ## License
