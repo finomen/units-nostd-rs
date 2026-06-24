@@ -1,3 +1,4 @@
+use crate::quantity::{UnitAdd, UnitDiv, UnitMul, UnitSub};
 use core::marker::ConstParamTy;
 use core::ops::{Add, Div, Mul, Sub};
 
@@ -51,4 +52,28 @@ pub struct SiCompoundUnitWrapper<const U: SiCompoundUnit> {}
 
 impl<const U: SiCompoundUnit> SiCompoundUnitWrapper<U> {
     pub(crate) const UNIT: SiCompoundUnit = U;
+}
+
+impl<const U1: SiCompoundUnit, const U2: SiCompoundUnit> UnitMul<SiCompoundUnitWrapper<U2>>
+    for SiCompoundUnitWrapper<U1>
+where
+    SiCompoundUnitWrapper<{ U1 * U2 }>: Sized,
+{
+    type Result = SiCompoundUnitWrapper<{ U1 * U2 }>;
+}
+
+impl<const U1: SiCompoundUnit, const U2: SiCompoundUnit> UnitDiv<SiCompoundUnitWrapper<U2>>
+    for SiCompoundUnitWrapper<U1>
+where
+    SiCompoundUnitWrapper<{ U1 / U2 }>: Sized,
+{
+    type Result = SiCompoundUnitWrapper<{ U1 / U2 }>;
+}
+
+impl<const U: SiCompoundUnit> UnitAdd<SiCompoundUnitWrapper<U>> for SiCompoundUnitWrapper<U> {
+    type Result = SiCompoundUnitWrapper<U>;
+}
+
+impl<const U: SiCompoundUnit> UnitSub<SiCompoundUnitWrapper<U>> for SiCompoundUnitWrapper<U> {
+    type Result = SiCompoundUnitWrapper<U>;
 }

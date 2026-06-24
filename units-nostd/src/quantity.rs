@@ -17,6 +17,30 @@ use si::SiCompoundUnitWrapper;
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
+/// Declare multiplication operation for units
+pub trait UnitMul<T> {
+    /// Result unit
+    type Result;
+}
+
+/// Declare division operation for units
+pub trait UnitDiv<T> {
+    /// Result unit
+    type Result;
+}
+
+/// Declare addition operation for units
+pub trait UnitAdd<T> {
+    /// Result unit
+    type Result;
+}
+
+/// Declare substraction operation for units
+pub trait UnitSub<T> {
+    /// Result unit
+    type Result;
+}
+
 #[derive(Debug, Default, PartialOrd, Ord)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Quantity<T, const S: Scale, U> {
@@ -193,16 +217,16 @@ where
     pub(crate) const UNIT: SiCompoundUnit = U;
 }
 
-impl<T, V, const S: Scale, const U: SiCompoundUnit> Add<Quantity<V, S, SiCompoundUnitWrapper<U>>>
-    for Quantity<T, S, SiCompoundUnitWrapper<U>>
+impl<T, V, const S: Scale, U1, U2> Add<Quantity<V, S, U2>> for Quantity<T, S, U1>
 where
     T: Copy,
     V: Copy,
     T: Add<V>,
+    U1: UnitAdd<U2>,
 {
-    type Output = Quantity<<T as Add<V>>::Output, { S }, SiCompoundUnitWrapper<U>>;
+    type Output = Quantity<<T as Add<V>>::Output, { S }, <U1 as UnitAdd<U2>>::Result>;
 
-    fn add(self, rhs: Quantity<V, S, SiCompoundUnitWrapper<U>>) -> Self::Output {
+    fn add(self, rhs: Quantity<V, S, U2>) -> Self::Output {
         Self::Output {
             value: self.value + rhs.value,
             u: PhantomData,
@@ -210,16 +234,16 @@ where
     }
 }
 
-impl<T, V, const S: Scale, const U: SiCompoundUnit> Sub<Quantity<V, S, SiCompoundUnitWrapper<U>>>
-    for Quantity<T, S, SiCompoundUnitWrapper<U>>
+impl<T, V, const S: Scale, U1, U2> Sub<Quantity<V, S, U2>> for Quantity<T, S, U1>
 where
     T: Copy,
     V: Copy,
     T: Sub<V>,
+    U1: UnitSub<U2>,
 {
-    type Output = Quantity<<T as Sub<V>>::Output, { S }, SiCompoundUnitWrapper<U>>;
+    type Output = Quantity<<T as Sub<V>>::Output, { S }, <U1 as UnitSub<U2>>::Result>;
 
-    fn sub(self, rhs: Quantity<V, S, SiCompoundUnitWrapper<U>>) -> Self::Output {
+    fn sub(self, rhs: Quantity<V, S, U2>) -> Self::Output {
         Self::Output {
             value: self.value - rhs.value,
             u: PhantomData,
@@ -227,17 +251,18 @@ where
     }
 }
 
-impl<T, V, const S1: Scale, const S2: Scale, const U1: SiCompoundUnit, const U2: SiCompoundUnit>
-    Mul<Quantity<V, S2, SiCompoundUnitWrapper<U2>>> for Quantity<T, S1, SiCompoundUnitWrapper<U1>>
+impl<T, V, const S1: Scale, const S2: Scale, U1, U2> Mul<Quantity<V, S2, U2>>
+    for Quantity<T, S1, U1>
 where
     T: Copy,
     V: Copy,
     T: Mul<V>,
-    Quantity<<T as Mul<V>>::Output, { S1 * S2 }, SiCompoundUnitWrapper<{ U1 * U2 }>>: Sized,
+    U1: UnitMul<U2>,
+    Quantity<<T as Mul<V>>::Output, { S1 * S2 }, <U1 as UnitMul<U2>>::Result>: Sized,
 {
-    type Output = Quantity<<T as Mul<V>>::Output, { S1 * S2 }, SiCompoundUnitWrapper<{ U1 * U2 }>>;
+    type Output = Quantity<<T as Mul<V>>::Output, { S1 * S2 }, <U1 as UnitMul<U2>>::Result>;
 
-    fn mul(self, rhs: Quantity<V, S2, SiCompoundUnitWrapper<U2>>) -> Self::Output {
+    fn mul(self, rhs: Quantity<V, S2, U2>) -> Self::Output {
         Self::Output {
             value: self.value * rhs.value,
             u: PhantomData,
@@ -245,17 +270,18 @@ where
     }
 }
 
-impl<T, V, const S1: Scale, const S2: Scale, const U1: SiCompoundUnit, const U2: SiCompoundUnit>
-    Div<Quantity<V, S2, SiCompoundUnitWrapper<U2>>> for Quantity<T, S1, SiCompoundUnitWrapper<U1>>
+impl<T, V, const S1: Scale, const S2: Scale, U1, U2> Div<Quantity<V, S2, U2>>
+    for Quantity<T, S1, U1>
 where
     T: Copy,
     V: Copy,
     T: Div<V>,
-    Quantity<<T as Div<V>>::Output, { S1 / S2 }, SiCompoundUnitWrapper<{ U1 / U2 }>>: Sized,
+    U1: UnitDiv<U2>,
+    Quantity<<T as Div<V>>::Output, { S1 / S2 }, <U1 as UnitDiv<U2>>::Result>: Sized,
 {
-    type Output = Quantity<<T as Div<V>>::Output, { S1 / S2 }, SiCompoundUnitWrapper<{ U1 / U2 }>>;
+    type Output = Quantity<<T as Div<V>>::Output, { S1 / S2 }, <U1 as UnitDiv<U2>>::Result>;
 
-    fn div(self, rhs: Quantity<V, S2, SiCompoundUnitWrapper<U2>>) -> Self::Output {
+    fn div(self, rhs: Quantity<V, S2, U2>) -> Self::Output {
         Self::Output {
             value: self.value / rhs.value,
             u: PhantomData,
