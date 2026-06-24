@@ -1,6 +1,7 @@
 use crate::quantity::{UnitAdd, UnitDiv, UnitMul, UnitSub};
 use core::marker::ConstParamTy;
 use core::ops::{Add, Div, Mul, Sub};
+use paste::paste;
 
 macro_rules! si_compound_unit {
     ({ $( $base_unit:ident ),* $(,)? }) => {
@@ -19,6 +20,17 @@ macro_rules! si_compound_unit {
                     $($base_unit: self.$base_unit * p),*
                 }
             }
+
+            pub(crate) const fn zero() -> Self {
+                Self {
+                    $($base_unit: 0),*
+                }
+            }
+
+            $(pub(crate) const fn $base_unit(mut self, v: i32) -> Self {
+                self.$base_unit = v;
+                self
+            })*
         }
 
         const impl Mul<SiCompoundUnit> for SiCompoundUnit {
@@ -39,6 +51,10 @@ macro_rules! si_compound_unit {
                     $($base_unit: self.$base_unit - other.$base_unit),*
                 }
             }
+        }
+
+        paste! {
+            $(pub(crate) type [<$base_unit:camel>]<const P: i32> = SiCompoundUnitWrapper<{SiCompoundUnit::zero().$base_unit(P)}>;)*
         }
     }
 }

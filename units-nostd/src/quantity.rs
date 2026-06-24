@@ -293,7 +293,7 @@ where
 mod tests {
     use crate::Quantity;
     use crate::length::*;
-    use crate::quantity::{ConversionError, SiCompoundUnit, SiCompoundUnitWrapper};
+    use crate::quantity::{ConversionError, SiCompoundUnit, SiCompoundUnitWrapper, si};
     use crate::scale::*;
     use crate::time::*;
     use core::marker::PhantomData;
@@ -304,48 +304,14 @@ mod tests {
         use crate::base_units::Meters;
         assert_eq!(
             Meters::<i32>::new(42),
-            Quantity::<
-                i32,
-                ONE,
-                SiCompoundUnitWrapper<
-                    {
-                        SiCompoundUnit {
-                            meter: 1,
-                            second: 0,
-                            ampere: 0,
-                            candela: 0,
-                            gram: 0,
-                            kelvin: 0,
-                            mole: 0,
-                            radians: 0,
-                        }
-                    },
-                >,
-            > {
+            Quantity::<i32, ONE, si::Meter<1>> {
                 value: 42,
                 u: PhantomData
             }
         );
         assert_eq!(
             Meters::<f32>::new(42.5),
-            Quantity::<
-                f32,
-                ONE,
-                SiCompoundUnitWrapper<
-                    {
-                        SiCompoundUnit {
-                            meter: 1,
-                            second: 0,
-                            ampere: 0,
-                            candela: 0,
-                            gram: 0,
-                            kelvin: 0,
-                            mole: 0,
-                            radians: 0,
-                        }
-                    },
-                >,
-            > {
+            Quantity::<f32, ONE, si::Meter<1>> {
                 value: 42.5,
                 u: PhantomData
             }
@@ -367,20 +333,7 @@ mod tests {
             Quantity::<
                 i32,
                 ONE,
-                SiCompoundUnitWrapper<
-                    {
-                        SiCompoundUnit {
-                            meter: 1,
-                            second: 1,
-                            ampere: 0,
-                            candela: 0,
-                            gram: 0,
-                            kelvin: 0,
-                            mole: 0,
-                            radians: 0,
-                        }
-                    },
-                >,
+                SiCompoundUnitWrapper<{ SiCompoundUnit::zero().meter(1).second(1) }>,
             > {
                 value: 18,
                 u: PhantomData
@@ -388,24 +341,7 @@ mod tests {
         );
         assert_eq!(
             Meters::<i32>::new(6) * Meters::<i32>::new(3),
-            Quantity::<
-                i32,
-                ONE,
-                SiCompoundUnitWrapper<
-                    {
-                        SiCompoundUnit {
-                            meter: 2,
-                            second: 0,
-                            ampere: 0,
-                            candela: 0,
-                            gram: 0,
-                            kelvin: 0,
-                            mole: 0,
-                            radians: 0,
-                        }
-                    },
-                >,
-            > {
+            Quantity::<i32, ONE, si::Meter<2>> {
                 value: 18,
                 u: PhantomData,
             }
@@ -415,20 +351,7 @@ mod tests {
             Quantity::<
                 i32,
                 { Scale::new(60000, 1) },
-                SiCompoundUnitWrapper<
-                    {
-                        SiCompoundUnit {
-                            meter: 1,
-                            second: 1,
-                            ampere: 0,
-                            candela: 0,
-                            gram: 0,
-                            kelvin: 0,
-                            mole: 0,
-                            radians: 0,
-                        }
-                    },
-                >,
+                SiCompoundUnitWrapper<{ SiCompoundUnit::zero().meter(1).second(1) }>,
             > {
                 value: 18,
                 u: PhantomData,
@@ -444,20 +367,7 @@ mod tests {
             Quantity::<
                 i32,
                 ONE,
-                SiCompoundUnitWrapper<
-                    {
-                        SiCompoundUnit {
-                            meter: 1,
-                            second: -1,
-                            ampere: 0,
-                            candela: 0,
-                            gram: 0,
-                            kelvin: 0,
-                            mole: 0,
-                            radians: 0,
-                        }
-                    },
-                >,
+                SiCompoundUnitWrapper<{ SiCompoundUnit::zero().meter(1).second(-1) }>,
             > {
                 value: 2,
                 u: PhantomData,
@@ -465,24 +375,7 @@ mod tests {
         );
         assert_eq!(
             Meters::<i32>::new(6) / Meters::<i32>::new(3),
-            Quantity::<
-                i32,
-                ONE,
-                SiCompoundUnitWrapper<
-                    {
-                        SiCompoundUnit {
-                            meter: 0,
-                            second: 0,
-                            ampere: 0,
-                            candela: 0,
-                            gram: 0,
-                            kelvin: 0,
-                            mole: 0,
-                            radians: 0,
-                        }
-                    },
-                >,
-            > {
+            Quantity::<i32, ONE, SiCompoundUnitWrapper<{ SiCompoundUnit::zero() }>> {
                 value: 2,
                 u: PhantomData,
             }
@@ -492,20 +385,7 @@ mod tests {
             Quantity::<
                 i32,
                 { Scale::new(1000, 60) },
-                SiCompoundUnitWrapper<
-                    {
-                        SiCompoundUnit {
-                            meter: 1,
-                            second: -1,
-                            ampere: 0,
-                            candela: 0,
-                            gram: 0,
-                            kelvin: 0,
-                            mole: 0,
-                            radians: 0,
-                        }
-                    },
-                >,
+                SiCompoundUnitWrapper<{ SiCompoundUnit::zero().meter(1).second(-1) }>,
             > {
                 value: 2,
                 u: PhantomData,

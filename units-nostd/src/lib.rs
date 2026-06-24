@@ -583,169 +583,17 @@ mod base_units {
     use crate::quantity::si::{SiCompoundUnit, SiCompoundUnitWrapper};
     use crate::scale::ONE;
 
-    pub(crate) type Unitless<T> = Quantity<
-        T,
-        ONE,
-        SiCompoundUnitWrapper<
-            {
-                SiCompoundUnit {
-                    meter: 0,
-                    second: 0,
-                    ampere: 0,
-                    candela: 0,
-                    gram: 0,
-                    kelvin: 0,
-                    mole: 0,
-                    radians: 0,
-                }
-            },
-        >,
-    >;
+    pub(crate) type Unitless<T> =
+        Quantity<T, ONE, SiCompoundUnitWrapper<{ SiCompoundUnit::zero() }>>;
 
-    pub(crate) type Meters<T> = Quantity<
-        T,
-        ONE,
-        SiCompoundUnitWrapper<
-            {
-                SiCompoundUnit {
-                    meter: 1,
-                    second: 0,
-                    ampere: 0,
-                    candela: 0,
-                    gram: 0,
-                    kelvin: 0,
-                    mole: 0,
-                    radians: 0,
-                }
-            },
-        >,
-    >;
-    pub(crate) type Seconds<T> = Quantity<
-        T,
-        ONE,
-        SiCompoundUnitWrapper<
-            {
-                SiCompoundUnit {
-                    meter: 0,
-                    second: 1,
-                    ampere: 0,
-                    candela: 0,
-                    gram: 0,
-                    kelvin: 0,
-                    mole: 0,
-                    radians: 0,
-                }
-            },
-        >,
-    >;
-    pub(crate) type Grams<T> = Quantity<
-        T,
-        ONE,
-        SiCompoundUnitWrapper<
-            {
-                SiCompoundUnit {
-                    meter: 0,
-                    second: 0,
-                    ampere: 0,
-                    candela: 0,
-                    gram: 1,
-                    kelvin: 0,
-                    mole: 0,
-                    radians: 0,
-                }
-            },
-        >,
-    >;
-    pub(crate) type Kelvins<T> = Quantity<
-        T,
-        ONE,
-        SiCompoundUnitWrapper<
-            {
-                SiCompoundUnit {
-                    meter: 0,
-                    second: 0,
-                    ampere: 0,
-                    candela: 0,
-                    gram: 0,
-                    kelvin: 1,
-                    mole: 0,
-                    radians: 0,
-                }
-            },
-        >,
-    >;
-    pub(crate) type Ampere<T> = Quantity<
-        T,
-        ONE,
-        SiCompoundUnitWrapper<
-            {
-                SiCompoundUnit {
-                    meter: 0,
-                    second: 0,
-                    ampere: 1,
-                    candela: 0,
-                    gram: 0,
-                    kelvin: 0,
-                    mole: 0,
-                    radians: 0,
-                }
-            },
-        >,
-    >;
-    pub(crate) type Candela<T> = Quantity<
-        T,
-        ONE,
-        SiCompoundUnitWrapper<
-            {
-                SiCompoundUnit {
-                    meter: 0,
-                    second: 0,
-                    ampere: 0,
-                    candela: 1,
-                    gram: 0,
-                    kelvin: 0,
-                    mole: 0,
-                    radians: 0,
-                }
-            },
-        >,
-    >;
-    pub(crate) type Mole<T> = Quantity<
-        T,
-        ONE,
-        SiCompoundUnitWrapper<
-            {
-                SiCompoundUnit {
-                    meter: 0,
-                    second: 0,
-                    ampere: 0,
-                    candela: 0,
-                    gram: 0,
-                    kelvin: 0,
-                    mole: 1,
-                    radians: 0,
-                }
-            },
-        >,
-    >;
-    pub(crate) type Radians<T> = Quantity<
-        T,
-        ONE,
-        SiCompoundUnitWrapper<
-            {
-                SiCompoundUnit {
-                    meter: 0,
-                    second: 0,
-                    ampere: 0,
-                    candela: 0,
-                    gram: 0,
-                    kelvin: 0,
-                    mole: 0,
-                    radians: 1,
-                }
-            },
-        >,
-    >;
+    pub(crate) type Meters<T> = Quantity<T, ONE, crate::quantity::si::Meter<1>>;
+    pub(crate) type Seconds<T> = Quantity<T, ONE, crate::quantity::si::Second<1>>;
+    pub(crate) type Grams<T> = Quantity<T, ONE, crate::quantity::si::Gram<1>>;
+    pub(crate) type Kelvins<T> = Quantity<T, ONE, crate::quantity::si::Kelvin<1>>;
+    pub(crate) type Ampere<T> = Quantity<T, ONE, crate::quantity::si::Ampere<1>>;
+    pub(crate) type Candela<T> = Quantity<T, ONE, crate::quantity::si::Candela<1>>;
+    pub(crate) type Mole<T> = Quantity<T, ONE, crate::quantity::si::Mole<1>>;
+    pub(crate) type Radians<T> = Quantity<T, ONE, crate::quantity::si::Radians<1>>;
 }
 
 named_unit!(Unitless, base_units::Unitless<T>, "");
