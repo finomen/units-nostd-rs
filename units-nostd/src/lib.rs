@@ -44,6 +44,8 @@
 //! ```
 //! assert_eq!(units::temperature::Kelvins::new(10).value(), 10);
 //! assert_eq!(format!("{}", units::temperature::Kelvins::new(10)), "10K");
+//! assert_eq!(format!("{}", units::temperature::MilliKelvins::new(10)), "10mK");
+//! assert_eq!(format!("{}", units::temperature::DegreesCelsius::new(10)), "10℃");
 //! ```
 //!
 //! ## Electric current
@@ -637,11 +639,123 @@ pub mod mass {
 
 #[cfg(feature = "temperature")]
 pub mod temperature {
-    use crate::prefixes;
+    use crate::quantity::errors::ConversionError;
+    use crate::quantity::{UnitConvert, UnitTryConvert, si};
     use crate::scale::ONE;
     use crate::{Quantity, base_units};
+    use crate::{Scale, prefixes};
+    use core::convert::Infallible;
+    use core::ops::{Add, Div, Mul, Sub};
 
-    named_unit!(Kelvins, base_units::Kelvins<T>, "K");
+    scalable_unit!(Kelvins, base_units::Kelvins<T>, "K", 1, { MILLI });
+
+    /// Unit for degrees Celsius
+    /// ```
+    /// let res : Result<units::temperature::MilliKelvins<u64>, _> = units::temperature::DegreesCelsius::new(0).try_convert();
+    /// assert_eq!(res, Ok(units::temperature::MilliKelvins::<u64>::new(273150)));
+    /// ```
+    ///
+    /// ```
+    /// let res : Result<units::temperature::MilliKelvins<u64>, _> = units::temperature::DegreesCelsius::new(20).try_convert();
+    /// assert_eq!(res, Ok(units::temperature::MilliKelvins::<u64>::new(293150)));
+    /// ```
+    ///
+    /// ```
+    /// let res : Result<units::temperature::DegreesCelsius<u64>, _> = units::temperature::MilliKelvins::new(293150).try_convert();
+    /// assert_eq!(res, Ok(units::temperature::DegreesCelsius::<u64>::new(20)));
+    /// ```
+    ///
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    pub struct Celsius;
+
+    const ZERO_CELSIUS: MilliKelvins<u64> = MilliKelvins::new(273_150);
+
+    impl<T, V, const S1: Scale, const S2: Scale> UnitConvert<Celsius, T, V, S1, S2> for si::Kelvin<1>
+    where
+        V: Sub<V, Output = V>
+            + Div<V, Output = V>
+            + Mul<V, Output = V>
+            + From<T>
+            + From<u64>
+            + Copy,
+    {
+        fn convert(value: T) -> V {
+            let vk = <si::Kelvin<1> as UnitConvert<si::Kelvin<1>, T, V, S1, S2>>::convert(value);
+            let offset: Quantity<V, S2, si::Kelvin<1>> = ZERO_CELSIUS.convert();
+            vk - offset.value()
+        }
+    }
+
+    impl<T, V, const S1: Scale, const S2: Scale, E1, EU> UnitTryConvert<Celsius, T, V, S1, S2>
+        for si::Kelvin<1>
+    where
+        V: Sub<V, Output = V>
+            + Div<V, Output = V>
+            + Mul<V, Output = V>
+            + TryFrom<T>
+            + TryFrom<u64, Error = EU>
+            + Copy,
+        <V as TryFrom<T>>::Error: core::error::Error,
+        si::Kelvin<1>: UnitTryConvert<si::Kelvin<1>, T, V, S1, S2, Error = E1>,
+        E1: core::error::Error,
+        EU: core::error::Error + Copy,
+    {
+        type Error =
+            ConversionError<E1, Infallible, Infallible, ConversionError<EU, EU, EU, Infallible>>;
+        fn try_convert(value: T) -> Result<V, Self::Error> {
+            let vk =
+                <si::Kelvin<1> as UnitTryConvert<si::Kelvin<1>, T, V, S1, S2>>::try_convert(value)
+                    .map_err(ConversionError::ValueConversionError)?;
+            let offset: Quantity<V, S2, si::Kelvin<1>> = ZERO_CELSIUS
+                .try_convert()
+                .map_err(ConversionError::OffsetConversionError)?;
+            Ok(vk - offset.value())
+        }
+    }
+
+    impl<T, V, const S1: Scale, const S2: Scale> UnitConvert<si::Kelvin<1>, T, V, S1, S2> for Celsius
+    where
+        V: Add<V, Output = V>
+            + Div<V, Output = V>
+            + Mul<V, Output = V>
+            + From<T>
+            + From<u64>
+            + Copy,
+    {
+        fn convert(value: T) -> V {
+            let vk = <si::Kelvin<1> as UnitConvert<si::Kelvin<1>, T, V, S1, S2>>::convert(value);
+            let offset: Quantity<V, S2, si::Kelvin<1>> = ZERO_CELSIUS.convert();
+            vk + offset.value()
+        }
+    }
+
+    impl<T, V, const S1: Scale, const S2: Scale, E1, EU> UnitTryConvert<si::Kelvin<1>, T, V, S1, S2>
+        for Celsius
+    where
+        V: Add<V, Output = V>
+            + Div<V, Output = V>
+            + Mul<V, Output = V>
+            + TryFrom<T>
+            + TryFrom<u64, Error = EU>
+            + Copy,
+        si::Kelvin<1>: UnitTryConvert<si::Kelvin<1>, T, V, S1, S2, Error = E1>,
+        E1: core::error::Error,
+        EU: core::error::Error + Copy,
+    {
+        type Error =
+            ConversionError<E1, Infallible, Infallible, ConversionError<EU, EU, EU, Infallible>>;
+        fn try_convert(value: T) -> Result<V, Self::Error> {
+            let vk =
+                <si::Kelvin<1> as UnitTryConvert<si::Kelvin<1>, T, V, S1, S2>>::try_convert(value)
+                    .map_err(ConversionError::ValueConversionError)?;
+            let offset: Quantity<V, S2, si::Kelvin<1>> = ZERO_CELSIUS
+                .try_convert()
+                .map_err(ConversionError::OffsetConversionError)?;
+            Ok(vk + offset.value())
+        }
+    }
+
+    named_unit!(DegreesCelsius, Quantity<T, ONE, Celsius>, "℃");
 }
 
 #[cfg(feature = "electric_current")]

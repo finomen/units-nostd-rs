@@ -14,16 +14,16 @@ modules they are built from. Enable everything at once with the `full` feature.
 
 ### Base units (enabled by default)
 
-| Feature                | Dependencies  Units                     |
-|------------------------|-----------------------------------------|
-| length                 |               m, km, dm, cm, mm, μm, nm |
-| angle                  |               rad                       |
-| time                   |               s, min, h                 |
-| mass                   |               g, kg, mg, μg             |
-| temperature            |               K                         |
-| electric_current       |               A                         |
-| luminous_intensity     |               cd                        |
-| amount_of_substance    |               mol                       |
+| Feature             | Dependencies  Units       |
+|---------------------|---------------------------|
+| length              | m, km, dm, cm, mm, μm, nm |
+| angle               | rad                       |
+| time                | s, min, h                 |
+| mass                | g, kg, mg, μg             |
+| temperature         | K, mK, ℃                  |
+| electric_current    | A                         |
+| luminous_intensity  | cd                        |
+| amount_of_substance | mol                       |
 
 ### Derived units (opt-in)
 
