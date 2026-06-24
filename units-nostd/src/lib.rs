@@ -44,6 +44,8 @@
 //! ```
 //! assert_eq!(units::temperature::Kelvins::new(10).value(), 10);
 //! assert_eq!(format!("{}", units::temperature::Kelvins::new(10)), "10K");
+//! assert_eq!(format!("{}", units::temperature::MilliKelvins::new(10)), "10mK");
+//! assert_eq!(format!("{}", units::temperature::DegreesCelsius::new(10)), "10℃");
 //! ```
 //!
 //! ## Electric current
@@ -460,20 +462,21 @@
 extern crate core;
 
 mod prefixes;
-mod quantity;
+pub mod quantity;
 mod scale;
 
 use scale::ONE;
 
 use core::fmt::{Formatter, Pointer};
 
-pub use quantity::{ConversionError, Quantity, SiCompoundUnit};
+use quantity::Quantity;
+use quantity::si::SiCompoundUnitWrapper;
 pub use scale::Scale;
 
 macro_rules! pow_impl {
     ($unit:ty, $pow:literal) => {
         paste::paste! {
-            Quantity<T, {$unit::SCALE.pow($pow)}, crate::quantity::SiCompoundUnitWrapper<{$unit::UNIT.pow($pow)}>>
+            Quantity<T, {$unit::SCALE.pow($pow)}, crate::quantity::si::SiCompoundUnitWrapper<{$unit::UNIT.pow($pow)}>>
         }
     };
 }
@@ -481,7 +484,7 @@ macro_rules! pow_impl {
 macro_rules! div_impl {
     ($unit1:ty, $unit2:ty) => {
         paste::paste! {
-            Quantity<T, {$unit1::SCALE / $unit2::SCALE}, crate::quantity::SiCompoundUnitWrapper<{$unit1::UNIT / $unit2::UNIT}>>
+            Quantity<T, {$unit1::SCALE / $unit2::SCALE}, crate::quantity::si::SiCompoundUnitWrapper<{$unit1::UNIT / $unit2::UNIT}>>
         }
     };
 }
@@ -489,7 +492,7 @@ macro_rules! div_impl {
 macro_rules! mul_impl {
     ($unit1:ty, $unit2:ty) => {
         paste::paste! {
-            Quantity<T, {$unit1::SCALE * $unit2::SCALE}, crate::quantity::SiCompoundUnitWrapper<{$unit1::UNIT * $unit2::UNIT}>>
+            Quantity<T, {$unit1::SCALE * $unit2::SCALE}, crate::quantity::si::SiCompoundUnitWrapper<{$unit1::UNIT * $unit2::UNIT}>>
         }
     };
 }
@@ -497,7 +500,7 @@ macro_rules! mul_impl {
 macro_rules! scaled_impl {
     ($unit:ty, $scale:expr) => {
         paste::paste! {
-            Quantity<T, {<$unit>::SCALE * $scale}, crate::quantity::SiCompoundUnitWrapper<{<$unit>::UNIT}>>
+            Quantity<T, {<$unit>::SCALE * $scale}, crate::quantity::si::SiCompoundUnitWrapper<{<$unit>::UNIT}>>
         }
     };
 }
@@ -579,179 +582,28 @@ macro_rules! scalable_unit {
 
 mod base_units {
     use crate::Quantity;
-    use crate::quantity::{SiCompoundUnit, SiCompoundUnitWrapper};
+    use crate::quantity::si::{SiCompoundUnit, SiCompoundUnitWrapper};
     use crate::scale::ONE;
 
-    pub(crate) type Unitless<T> = Quantity<
-        T,
-        ONE,
-        SiCompoundUnitWrapper<
-            {
-                SiCompoundUnit {
-                    meter: 0,
-                    second: 0,
-                    ampere: 0,
-                    candela: 0,
-                    gram: 0,
-                    kelvin: 0,
-                    mole: 0,
-                    radians: 0,
-                }
-            },
-        >,
-    >;
+    pub(crate) type Unitless<T> =
+        Quantity<T, ONE, SiCompoundUnitWrapper<{ SiCompoundUnit::zero() }>>;
 
-    pub(crate) type Meters<T> = Quantity<
-        T,
-        ONE,
-        SiCompoundUnitWrapper<
-            {
-                SiCompoundUnit {
-                    meter: 1,
-                    second: 0,
-                    ampere: 0,
-                    candela: 0,
-                    gram: 0,
-                    kelvin: 0,
-                    mole: 0,
-                    radians: 0,
-                }
-            },
-        >,
-    >;
-    pub(crate) type Seconds<T> = Quantity<
-        T,
-        ONE,
-        SiCompoundUnitWrapper<
-            {
-                SiCompoundUnit {
-                    meter: 0,
-                    second: 1,
-                    ampere: 0,
-                    candela: 0,
-                    gram: 0,
-                    kelvin: 0,
-                    mole: 0,
-                    radians: 0,
-                }
-            },
-        >,
-    >;
-    pub(crate) type Grams<T> = Quantity<
-        T,
-        ONE,
-        SiCompoundUnitWrapper<
-            {
-                SiCompoundUnit {
-                    meter: 0,
-                    second: 0,
-                    ampere: 0,
-                    candela: 0,
-                    gram: 1,
-                    kelvin: 0,
-                    mole: 0,
-                    radians: 0,
-                }
-            },
-        >,
-    >;
-    pub(crate) type Kelvins<T> = Quantity<
-        T,
-        ONE,
-        SiCompoundUnitWrapper<
-            {
-                SiCompoundUnit {
-                    meter: 0,
-                    second: 0,
-                    ampere: 0,
-                    candela: 0,
-                    gram: 0,
-                    kelvin: 1,
-                    mole: 0,
-                    radians: 0,
-                }
-            },
-        >,
-    >;
-    pub(crate) type Ampere<T> = Quantity<
-        T,
-        ONE,
-        SiCompoundUnitWrapper<
-            {
-                SiCompoundUnit {
-                    meter: 0,
-                    second: 0,
-                    ampere: 1,
-                    candela: 0,
-                    gram: 0,
-                    kelvin: 0,
-                    mole: 0,
-                    radians: 0,
-                }
-            },
-        >,
-    >;
-    pub(crate) type Candela<T> = Quantity<
-        T,
-        ONE,
-        SiCompoundUnitWrapper<
-            {
-                SiCompoundUnit {
-                    meter: 0,
-                    second: 0,
-                    ampere: 0,
-                    candela: 1,
-                    gram: 0,
-                    kelvin: 0,
-                    mole: 0,
-                    radians: 0,
-                }
-            },
-        >,
-    >;
-    pub(crate) type Mole<T> = Quantity<
-        T,
-        ONE,
-        SiCompoundUnitWrapper<
-            {
-                SiCompoundUnit {
-                    meter: 0,
-                    second: 0,
-                    ampere: 0,
-                    candela: 0,
-                    gram: 0,
-                    kelvin: 0,
-                    mole: 1,
-                    radians: 0,
-                }
-            },
-        >,
-    >;
-    pub(crate) type Radians<T> = Quantity<
-        T,
-        ONE,
-        SiCompoundUnitWrapper<
-            {
-                SiCompoundUnit {
-                    meter: 0,
-                    second: 0,
-                    ampere: 0,
-                    candela: 0,
-                    gram: 0,
-                    kelvin: 0,
-                    mole: 0,
-                    radians: 1,
-                }
-            },
-        >,
-    >;
+    pub(crate) type Meters<T> = Quantity<T, ONE, crate::quantity::si::Meter<1>>;
+    pub(crate) type Seconds<T> = Quantity<T, ONE, crate::quantity::si::Second<1>>;
+    pub(crate) type Grams<T> = Quantity<T, ONE, crate::quantity::si::Gram<1>>;
+    pub(crate) type Kelvins<T> = Quantity<T, ONE, crate::quantity::si::Kelvin<1>>;
+    pub(crate) type Ampere<T> = Quantity<T, ONE, crate::quantity::si::Ampere<1>>;
+    pub(crate) type Candela<T> = Quantity<T, ONE, crate::quantity::si::Candela<1>>;
+    pub(crate) type Mole<T> = Quantity<T, ONE, crate::quantity::si::Mole<1>>;
+    pub(crate) type Radians<T> = Quantity<T, ONE, crate::quantity::si::Radians<1>>;
 }
 
 named_unit!(Unitless, base_units::Unitless<T>, "");
 
 #[cfg(feature = "length")]
 pub mod length {
-    use crate::{Quantity, base_units};
+    use crate::base_units;
+    use crate::quantity::Quantity;
 
     scalable_unit!(Meters, base_units::Meters<T>, "m", 1, {KILO, DECI, CENTI, MILLI, MICRO, NANO});
 }
@@ -787,11 +639,123 @@ pub mod mass {
 
 #[cfg(feature = "temperature")]
 pub mod temperature {
-    use crate::prefixes;
+    use crate::quantity::errors::ConversionError;
+    use crate::quantity::{UnitConvert, UnitTryConvert, si};
     use crate::scale::ONE;
     use crate::{Quantity, base_units};
+    use crate::{Scale, prefixes};
+    use core::convert::Infallible;
+    use core::ops::{Add, Div, Mul, Sub};
 
-    named_unit!(Kelvins, base_units::Kelvins<T>, "K");
+    scalable_unit!(Kelvins, base_units::Kelvins<T>, "K", 1, { MILLI });
+
+    /// Unit for degrees Celsius
+    /// ```
+    /// let res : Result<units::temperature::MilliKelvins<u64>, _> = units::temperature::DegreesCelsius::new(0).try_convert();
+    /// assert_eq!(res, Ok(units::temperature::MilliKelvins::<u64>::new(273150)));
+    /// ```
+    ///
+    /// ```
+    /// let res : Result<units::temperature::MilliKelvins<u64>, _> = units::temperature::DegreesCelsius::new(20).try_convert();
+    /// assert_eq!(res, Ok(units::temperature::MilliKelvins::<u64>::new(293150)));
+    /// ```
+    ///
+    /// ```
+    /// let res : Result<units::temperature::DegreesCelsius<u64>, _> = units::temperature::MilliKelvins::new(293150).try_convert();
+    /// assert_eq!(res, Ok(units::temperature::DegreesCelsius::<u64>::new(20)));
+    /// ```
+    ///
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    pub struct Celsius;
+
+    const ZERO_CELSIUS: MilliKelvins<u64> = MilliKelvins::new(273_150);
+
+    impl<T, V, const S1: Scale, const S2: Scale> UnitConvert<Celsius, T, V, S1, S2> for si::Kelvin<1>
+    where
+        V: Sub<V, Output = V>
+            + Div<V, Output = V>
+            + Mul<V, Output = V>
+            + From<T>
+            + From<u64>
+            + Copy,
+    {
+        fn convert(value: T) -> V {
+            let vk = <si::Kelvin<1> as UnitConvert<si::Kelvin<1>, T, V, S1, S2>>::convert(value);
+            let offset: Quantity<V, S2, si::Kelvin<1>> = ZERO_CELSIUS.convert();
+            vk - offset.value()
+        }
+    }
+
+    impl<T, V, const S1: Scale, const S2: Scale, E1, EU> UnitTryConvert<Celsius, T, V, S1, S2>
+        for si::Kelvin<1>
+    where
+        V: Sub<V, Output = V>
+            + Div<V, Output = V>
+            + Mul<V, Output = V>
+            + TryFrom<T>
+            + TryFrom<u64, Error = EU>
+            + Copy,
+        <V as TryFrom<T>>::Error: core::error::Error,
+        si::Kelvin<1>: UnitTryConvert<si::Kelvin<1>, T, V, S1, S2, Error = E1>,
+        E1: core::error::Error,
+        EU: core::error::Error + Copy,
+    {
+        type Error =
+            ConversionError<E1, Infallible, Infallible, ConversionError<EU, EU, EU, Infallible>>;
+        fn try_convert(value: T) -> Result<V, Self::Error> {
+            let vk =
+                <si::Kelvin<1> as UnitTryConvert<si::Kelvin<1>, T, V, S1, S2>>::try_convert(value)
+                    .map_err(ConversionError::ValueConversionError)?;
+            let offset: Quantity<V, S2, si::Kelvin<1>> = ZERO_CELSIUS
+                .try_convert()
+                .map_err(ConversionError::OffsetConversionError)?;
+            Ok(vk - offset.value())
+        }
+    }
+
+    impl<T, V, const S1: Scale, const S2: Scale> UnitConvert<si::Kelvin<1>, T, V, S1, S2> for Celsius
+    where
+        V: Add<V, Output = V>
+            + Div<V, Output = V>
+            + Mul<V, Output = V>
+            + From<T>
+            + From<u64>
+            + Copy,
+    {
+        fn convert(value: T) -> V {
+            let vk = <si::Kelvin<1> as UnitConvert<si::Kelvin<1>, T, V, S1, S2>>::convert(value);
+            let offset: Quantity<V, S2, si::Kelvin<1>> = ZERO_CELSIUS.convert();
+            vk + offset.value()
+        }
+    }
+
+    impl<T, V, const S1: Scale, const S2: Scale, E1, EU> UnitTryConvert<si::Kelvin<1>, T, V, S1, S2>
+        for Celsius
+    where
+        V: Add<V, Output = V>
+            + Div<V, Output = V>
+            + Mul<V, Output = V>
+            + TryFrom<T>
+            + TryFrom<u64, Error = EU>
+            + Copy,
+        si::Kelvin<1>: UnitTryConvert<si::Kelvin<1>, T, V, S1, S2, Error = E1>,
+        E1: core::error::Error,
+        EU: core::error::Error + Copy,
+    {
+        type Error =
+            ConversionError<E1, Infallible, Infallible, ConversionError<EU, EU, EU, Infallible>>;
+        fn try_convert(value: T) -> Result<V, Self::Error> {
+            let vk =
+                <si::Kelvin<1> as UnitTryConvert<si::Kelvin<1>, T, V, S1, S2>>::try_convert(value)
+                    .map_err(ConversionError::ValueConversionError)?;
+            let offset: Quantity<V, S2, si::Kelvin<1>> = ZERO_CELSIUS
+                .try_convert()
+                .map_err(ConversionError::OffsetConversionError)?;
+            Ok(vk + offset.value())
+        }
+    }
+
+    named_unit!(DegreesCelsius, Quantity<T, ONE, Celsius>, "℃");
 }
 
 #[cfg(feature = "electric_current")]

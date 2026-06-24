@@ -1,5 +1,7 @@
-use crate::scale::{ONE, Scale};
+pub mod errors;
+pub mod si;
 
+use core::convert::Infallible;
 use core::error::Error;
 use core::fmt::{Debug, Display, Formatter};
 use core::hash::{Hash, Hasher};
@@ -7,87 +9,78 @@ use core::marker::{ConstParamTy, PhantomData};
 use core::ops::{Add, Div, Mul, Sub};
 use paste::paste;
 
+use crate::scale::{ONE, Scale};
+use errors::ConversionError;
+
+use si::SiCompoundUnit;
+use si::SiCompoundUnitWrapper;
+
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, PartialEq, Clone, Copy, Eq)]
-pub enum ConversionError<SE, VE> {
-    ScaleFailed(SE),
-    ValueConversionFailed(VE),
+/// Declare multiplication operation for units
+pub trait UnitMul<T> {
+    /// Result unit
+    type Result;
 }
 
-impl<SE, VE> Display for ConversionError<SE, VE>
+/// Declare division operation for units
+pub trait UnitDiv<T> {
+    /// Result unit
+    type Result;
+}
+
+/// Declare addition operation for units
+pub trait UnitAdd<T> {
+    /// Result unit
+    type Result;
+}
+
+/// Declare substraction operation for units
+pub trait UnitSub<T> {
+    /// Result unit
+    type Result;
+}
+
+/// Declare unit conversion
+pub trait UnitConvert<U, T, V, const S1: Scale, const S2: Scale> {
+    fn convert(value: T) -> V;
+}
+
+/// Declare unit conversion
+pub trait UnitTryConvert<U, T, V, const S1: Scale, const S2: Scale> {
+    type Error;
+    fn try_convert(value: T) -> Result<V, Self::Error>;
+}
+
+impl<T, V, const S1: Scale, const S2: Scale, const U: si::SiCompoundUnit>
+    UnitConvert<si::SiCompoundUnitWrapper<U>, T, V, S1, S2> for si::SiCompoundUnitWrapper<U>
 where
-    SE: Display,
-    VE: Display,
+    V: From<T> + From<u64> + Mul<V, Output = V> + Div<V, Output = V>,
 {
-    fn fmt(&self, f: &mut Formatter<'_>) -> core::fmt::Result {
-        match self {
-            ConversionError::ScaleFailed(e) => write!(f, "Scale conversion failed: {}", e),
-            ConversionError::ValueConversionFailed(e) => {
-                write!(f, "Value conversion failed: {}", e)
-            }
-        }
-    }
-}
-impl<SE, VE> Error for ConversionError<SE, VE>
-where
-    SE: Display,
-    VE: Display,
-    SE: Debug,
-    VE: Debug,
-{
-}
-
-macro_rules! si_compound_unit {
-    ({ $( $base_unit:ident ),* $(,)? }) => {
-        #[derive(Debug, Clone, Copy, ConstParamTy)]
-        #[derive_const(PartialEq, Eq)]
-        #[doc(hidden)]
-        /// Constructed via the provided unit aliases, not directly
-        pub struct SiCompoundUnit {
-            $(pub(crate)  $base_unit : i32),*
-        }
-
-        impl SiCompoundUnit {
-            pub(crate) const fn pow(self, p: i32) -> Self {
-                Self {
-                    $($base_unit: self.$base_unit * p),*
-                }
-            }
-        }
-
-        const impl Mul<SiCompoundUnit> for SiCompoundUnit {
-            type Output = SiCompoundUnit;
-
-            fn mul(self, other: SiCompoundUnit) -> Self{
-                Self {
-                    $($base_unit: self.$base_unit + other.$base_unit),*
-                }
-            }
-        }
-
-        const impl Div<SiCompoundUnit> for SiCompoundUnit {
-            type Output = SiCompoundUnit;
-
-            fn div(self, other: SiCompoundUnit) -> Self{
-                Self {
-                    $($base_unit: self.$base_unit - other.$base_unit),*
-                }
-            }
-        }
+    fn convert(value: T) -> V {
+        let mul = S1 / S2;
+        V::from(value) * V::from(mul.numerator()) / V::from(mul.denominator())
     }
 }
 
-si_compound_unit!({ meter, second, gram, kelvin, ampere, candela, mole, radians });
-
-#[derive(Debug, Hash, Default, PartialEq, Eq, PartialOrd, Ord)]
-#[doc(hidden)]
-/// Constructed via the provided unit aliases, not directly
-pub struct SiCompoundUnitWrapper<const U: SiCompoundUnit> {}
-
-impl<const U: SiCompoundUnit> SiCompoundUnitWrapper<U> {
-    pub(crate) const UNIT: SiCompoundUnit = U;
+impl<T, V, const S1: Scale, const S2: Scale, const U: si::SiCompoundUnit, E1, E2>
+    UnitTryConvert<si::SiCompoundUnitWrapper<U>, T, V, S1, S2> for si::SiCompoundUnitWrapper<U>
+where
+    V: TryFrom<T, Error = E1> + TryFrom<u64, Error = E2> + Mul<V, Output = V> + Div<V, Output = V>,
+    E1: Error + Copy,
+    E2: Error + Copy,
+{
+    type Error = ConversionError<E1, E2, E2, Infallible>;
+    fn try_convert(value: T) -> Result<V, Self::Error> {
+        let mul = S1 / S2;
+        let cv = V::try_from(value).map_err(ConversionError::ValueConversionError)?;
+        let cvn =
+            V::try_from(mul.numerator()).map_err(ConversionError::NumeratorConversionError)?;
+        let cvd =
+            V::try_from(mul.denominator()).map_err(ConversionError::DenominatorConversionError)?;
+        Ok(cv * cvn / cvd)
+    }
 }
 
 #[derive(Debug, Default, PartialOrd, Ord)]
@@ -143,7 +136,7 @@ where
     /// let distance = Meters::new(10);
     /// assert_eq!(distance.value(), 10);
     /// ```
-    pub fn new(value: T) -> Self {
+    pub const fn new(value: T) -> Self {
         Self {
             value,
             u: PhantomData,
@@ -178,17 +171,13 @@ where
     /// let secs: Seconds<u64> = Minutes::<u64>::new(6).convert();
     /// assert_eq!(secs.value(), 360);
     /// ```
-    pub fn convert<V, const S2: Scale>(self) -> Quantity<V, S2, U>
+    pub fn convert<V, const S2: Scale, U2>(self) -> Quantity<V, S2, U2>
     where
         V: Copy,
-        V: From<T>,
-        V: From<u64>,
-        V: Mul<V, Output = V>,
-        V: Div<V, Output = V>,
+        U: UnitConvert<U2, T, V, S, S2>,
     {
-        let mul = S / S2;
-        Quantity::<V, S2, U> {
-            value: V::from(self.value) * V::from(mul.numerator()) / V::from(mul.denominator()),
+        Quantity::<V, S2, U2> {
+            value: <U as UnitConvert<U2, T, V, S, S2>>::convert(self.value),
             u: PhantomData,
         }
     }
@@ -199,60 +188,46 @@ where
     /// truncating.
     ///
     /// # Errors
-    /// Returns [`ConversionError::ValueConversionFailed`] if the wrapped
+    /// Returns [`ConversionError::ValueConversionError`] if the wrapped
     /// value cannot be represented in the target type `V`, or
-    /// [`ConversionError::ScaleFailed`] if the rescaling factor's
-    /// numerator or denominator cannot be represented in `V`.
+    /// [`ConversionError::NumeratorConversionError`] /
+    /// [`ConversionError::DenominatorConversionError`] if the rescaling
+    /// factor's numerator or denominator cannot be represented in `V`.
     ///
     /// # Examples
     /// ```
     /// use units::time::{Minutes, Seconds};
-    /// # fn main() -> Result<(), units::ConversionError<core::num::TryFromIntError, core::convert::Infallible>> {
-    /// let secs: Seconds<i32> = Minutes::<i32>::new(6).try_convert()?;
-    /// assert_eq!(secs.value(), 360);
-    /// # Ok(())
-    /// # }
+    /// let secs: Result<Seconds<i32>, _> = Minutes::<i32>::new(6).try_convert();
+    /// assert_eq!(secs, Ok(Seconds::<i32>::new(360)));
     /// ```
     /// Converting a value that does not fit the target type fails:
     /// ```
     /// use units::time::{Minutes, Seconds};
-    /// use units::ConversionError;
+    /// use units::quantity::errors::{ConversionError};
     ///
     /// let res: Result<Seconds<u8>, _> = Minutes::<u32>::new(300).try_convert();
     /// assert_eq!(
     ///     res,
-    ///     Err(ConversionError::ValueConversionFailed(u8::try_from(300u32).unwrap_err())),
+    ///     Err(ConversionError::ValueConversionError( u8::try_from(300u32).unwrap_err())),
     /// );
     /// ```
-    #[allow(clippy::type_complexity)]
-    pub fn try_convert<V, const S2: Scale>(
-        self,
-    ) -> Result<
-        Quantity<V, S2, U>,
-        ConversionError<<V as TryFrom<u64>>::Error, <V as TryFrom<T>>::Error>,
-    >
+    pub fn try_convert<V, U2, const S2: Scale, E>(self) -> Result<Quantity<V, S2, U2>, E>
     where
         V: Copy,
-        V: TryFrom<T>,
-        V: TryFrom<u64>,
-        V: Mul<V, Output = V>,
-        V: Div<V, Output = V>,
+        U: UnitTryConvert<U2, T, V, S, S2, Error = E>,
+        E: Error,
     {
-        let mul = S / S2;
-        let cv = V::try_from(self.value).map_err( ConversionError::<<V as TryFrom<u64>>::Error, <V as TryFrom<T>>::Error>::ValueConversionFailed)?;
-        let cvn = V::try_from(mul.numerator()).map_err(|e| {
-            ConversionError::<<V as TryFrom<u64>>::Error, <V as TryFrom<T>>::Error>::ScaleFailed(e)
-        })?;
-        let cvd = V::try_from(mul.denominator()).map_err(|e| {
-            ConversionError::<<V as TryFrom<u64>>::Error, <V as TryFrom<T>>::Error>::ScaleFailed(e)
-        })?;
-        Ok(Quantity::<V, S2, U> {
-            value: cv * cvn / cvd,
+        Ok(Quantity::<V, S2, U2> {
+            value: <U as UnitTryConvert<U2, T, V, S, S2>>::try_convert(self.value())?,
             u: PhantomData,
         })
     }
 
-    pub(crate) const SCALE: Scale = S;
+    /// Current scale relative to the base unit.
+    pub const SCALE: Scale = S;
+
+    /// Quantity with same type and unit but different scale.
+    pub type WithScale<const S2: Scale> = Quantity<T, S2, U>;
 }
 
 impl<T, const S: Scale, const U: SiCompoundUnit> Quantity<T, S, SiCompoundUnitWrapper<U>>
@@ -262,16 +237,16 @@ where
     pub(crate) const UNIT: SiCompoundUnit = U;
 }
 
-impl<T, V, const S: Scale, const U: SiCompoundUnit> Add<Quantity<V, S, SiCompoundUnitWrapper<U>>>
-    for Quantity<T, S, SiCompoundUnitWrapper<U>>
+impl<T, V, const S: Scale, U1, U2> Add<Quantity<V, S, U2>> for Quantity<T, S, U1>
 where
     T: Copy,
     V: Copy,
     T: Add<V>,
+    U1: UnitAdd<U2>,
 {
-    type Output = Quantity<<T as Add<V>>::Output, { S }, SiCompoundUnitWrapper<U>>;
+    type Output = Quantity<<T as Add<V>>::Output, { S }, <U1 as UnitAdd<U2>>::Result>;
 
-    fn add(self, rhs: Quantity<V, S, SiCompoundUnitWrapper<U>>) -> Self::Output {
+    fn add(self, rhs: Quantity<V, S, U2>) -> Self::Output {
         Self::Output {
             value: self.value + rhs.value,
             u: PhantomData,
@@ -279,16 +254,16 @@ where
     }
 }
 
-impl<T, V, const S: Scale, const U: SiCompoundUnit> Sub<Quantity<V, S, SiCompoundUnitWrapper<U>>>
-    for Quantity<T, S, SiCompoundUnitWrapper<U>>
+impl<T, V, const S: Scale, U1, U2> Sub<Quantity<V, S, U2>> for Quantity<T, S, U1>
 where
     T: Copy,
     V: Copy,
     T: Sub<V>,
+    U1: UnitSub<U2>,
 {
-    type Output = Quantity<<T as Sub<V>>::Output, { S }, SiCompoundUnitWrapper<U>>;
+    type Output = Quantity<<T as Sub<V>>::Output, { S }, <U1 as UnitSub<U2>>::Result>;
 
-    fn sub(self, rhs: Quantity<V, S, SiCompoundUnitWrapper<U>>) -> Self::Output {
+    fn sub(self, rhs: Quantity<V, S, U2>) -> Self::Output {
         Self::Output {
             value: self.value - rhs.value,
             u: PhantomData,
@@ -296,17 +271,18 @@ where
     }
 }
 
-impl<T, V, const S1: Scale, const S2: Scale, const U1: SiCompoundUnit, const U2: SiCompoundUnit>
-    Mul<Quantity<V, S2, SiCompoundUnitWrapper<U2>>> for Quantity<T, S1, SiCompoundUnitWrapper<U1>>
+impl<T, V, const S1: Scale, const S2: Scale, U1, U2> Mul<Quantity<V, S2, U2>>
+    for Quantity<T, S1, U1>
 where
     T: Copy,
     V: Copy,
     T: Mul<V>,
-    Quantity<<T as Mul<V>>::Output, { S1 * S2 }, SiCompoundUnitWrapper<{ U1 * U2 }>>: Sized,
+    U1: UnitMul<U2>,
+    Quantity<<T as Mul<V>>::Output, { S1 * S2 }, <U1 as UnitMul<U2>>::Result>: Sized,
 {
-    type Output = Quantity<<T as Mul<V>>::Output, { S1 * S2 }, SiCompoundUnitWrapper<{ U1 * U2 }>>;
+    type Output = Quantity<<T as Mul<V>>::Output, { S1 * S2 }, <U1 as UnitMul<U2>>::Result>;
 
-    fn mul(self, rhs: Quantity<V, S2, SiCompoundUnitWrapper<U2>>) -> Self::Output {
+    fn mul(self, rhs: Quantity<V, S2, U2>) -> Self::Output {
         Self::Output {
             value: self.value * rhs.value,
             u: PhantomData,
@@ -314,17 +290,18 @@ where
     }
 }
 
-impl<T, V, const S1: Scale, const S2: Scale, const U1: SiCompoundUnit, const U2: SiCompoundUnit>
-    Div<Quantity<V, S2, SiCompoundUnitWrapper<U2>>> for Quantity<T, S1, SiCompoundUnitWrapper<U1>>
+impl<T, V, const S1: Scale, const S2: Scale, U1, U2> Div<Quantity<V, S2, U2>>
+    for Quantity<T, S1, U1>
 where
     T: Copy,
     V: Copy,
     T: Div<V>,
-    Quantity<<T as Div<V>>::Output, { S1 / S2 }, SiCompoundUnitWrapper<{ U1 / U2 }>>: Sized,
+    U1: UnitDiv<U2>,
+    Quantity<<T as Div<V>>::Output, { S1 / S2 }, <U1 as UnitDiv<U2>>::Result>: Sized,
 {
-    type Output = Quantity<<T as Div<V>>::Output, { S1 / S2 }, SiCompoundUnitWrapper<{ U1 / U2 }>>;
+    type Output = Quantity<<T as Div<V>>::Output, { S1 / S2 }, <U1 as UnitDiv<U2>>::Result>;
 
-    fn div(self, rhs: Quantity<V, S2, SiCompoundUnitWrapper<U2>>) -> Self::Output {
+    fn div(self, rhs: Quantity<V, S2, U2>) -> Self::Output {
         Self::Output {
             value: self.value / rhs.value,
             u: PhantomData,
@@ -336,7 +313,8 @@ where
 mod tests {
     use crate::Quantity;
     use crate::length::*;
-    use crate::quantity::{ConversionError, SiCompoundUnit, SiCompoundUnitWrapper};
+    use crate::quantity::errors::ConversionError;
+    use crate::quantity::{SiCompoundUnit, SiCompoundUnitWrapper, si};
     use crate::scale::*;
     use crate::time::*;
     use core::marker::PhantomData;
@@ -347,48 +325,14 @@ mod tests {
         use crate::base_units::Meters;
         assert_eq!(
             Meters::<i32>::new(42),
-            Quantity::<
-                i32,
-                ONE,
-                SiCompoundUnitWrapper<
-                    {
-                        SiCompoundUnit {
-                            meter: 1,
-                            second: 0,
-                            ampere: 0,
-                            candela: 0,
-                            gram: 0,
-                            kelvin: 0,
-                            mole: 0,
-                            radians: 0,
-                        }
-                    },
-                >,
-            > {
+            Quantity::<i32, ONE, si::Meter<1>> {
                 value: 42,
                 u: PhantomData
             }
         );
         assert_eq!(
             Meters::<f32>::new(42.5),
-            Quantity::<
-                f32,
-                ONE,
-                SiCompoundUnitWrapper<
-                    {
-                        SiCompoundUnit {
-                            meter: 1,
-                            second: 0,
-                            ampere: 0,
-                            candela: 0,
-                            gram: 0,
-                            kelvin: 0,
-                            mole: 0,
-                            radians: 0,
-                        }
-                    },
-                >,
-            > {
+            Quantity::<f32, ONE, si::Meter<1>> {
                 value: 42.5,
                 u: PhantomData
             }
@@ -410,20 +354,7 @@ mod tests {
             Quantity::<
                 i32,
                 ONE,
-                SiCompoundUnitWrapper<
-                    {
-                        SiCompoundUnit {
-                            meter: 1,
-                            second: 1,
-                            ampere: 0,
-                            candela: 0,
-                            gram: 0,
-                            kelvin: 0,
-                            mole: 0,
-                            radians: 0,
-                        }
-                    },
-                >,
+                SiCompoundUnitWrapper<{ SiCompoundUnit::zero().meter(1).second(1) }>,
             > {
                 value: 18,
                 u: PhantomData
@@ -431,24 +362,7 @@ mod tests {
         );
         assert_eq!(
             Meters::<i32>::new(6) * Meters::<i32>::new(3),
-            Quantity::<
-                i32,
-                ONE,
-                SiCompoundUnitWrapper<
-                    {
-                        SiCompoundUnit {
-                            meter: 2,
-                            second: 0,
-                            ampere: 0,
-                            candela: 0,
-                            gram: 0,
-                            kelvin: 0,
-                            mole: 0,
-                            radians: 0,
-                        }
-                    },
-                >,
-            > {
+            Quantity::<i32, ONE, si::Meter<2>> {
                 value: 18,
                 u: PhantomData,
             }
@@ -458,20 +372,7 @@ mod tests {
             Quantity::<
                 i32,
                 { Scale::new(60000, 1) },
-                SiCompoundUnitWrapper<
-                    {
-                        SiCompoundUnit {
-                            meter: 1,
-                            second: 1,
-                            ampere: 0,
-                            candela: 0,
-                            gram: 0,
-                            kelvin: 0,
-                            mole: 0,
-                            radians: 0,
-                        }
-                    },
-                >,
+                SiCompoundUnitWrapper<{ SiCompoundUnit::zero().meter(1).second(1) }>,
             > {
                 value: 18,
                 u: PhantomData,
@@ -487,20 +388,7 @@ mod tests {
             Quantity::<
                 i32,
                 ONE,
-                SiCompoundUnitWrapper<
-                    {
-                        SiCompoundUnit {
-                            meter: 1,
-                            second: -1,
-                            ampere: 0,
-                            candela: 0,
-                            gram: 0,
-                            kelvin: 0,
-                            mole: 0,
-                            radians: 0,
-                        }
-                    },
-                >,
+                SiCompoundUnitWrapper<{ SiCompoundUnit::zero().meter(1).second(-1) }>,
             > {
                 value: 2,
                 u: PhantomData,
@@ -508,24 +396,7 @@ mod tests {
         );
         assert_eq!(
             Meters::<i32>::new(6) / Meters::<i32>::new(3),
-            Quantity::<
-                i32,
-                ONE,
-                SiCompoundUnitWrapper<
-                    {
-                        SiCompoundUnit {
-                            meter: 0,
-                            second: 0,
-                            ampere: 0,
-                            candela: 0,
-                            gram: 0,
-                            kelvin: 0,
-                            mole: 0,
-                            radians: 0,
-                        }
-                    },
-                >,
-            > {
+            Quantity::<i32, ONE, SiCompoundUnitWrapper<{ SiCompoundUnit::zero() }>> {
                 value: 2,
                 u: PhantomData,
             }
@@ -535,20 +406,7 @@ mod tests {
             Quantity::<
                 i32,
                 { Scale::new(1000, 60) },
-                SiCompoundUnitWrapper<
-                    {
-                        SiCompoundUnit {
-                            meter: 1,
-                            second: -1,
-                            ampere: 0,
-                            candela: 0,
-                            gram: 0,
-                            kelvin: 0,
-                            mole: 0,
-                            radians: 0,
-                        }
-                    },
-                >,
+                SiCompoundUnitWrapper<{ SiCompoundUnit::zero().meter(1).second(-1) }>,
             > {
                 value: 2,
                 u: PhantomData,
@@ -629,14 +487,14 @@ mod tests {
         let sec8_res: Result<Seconds<u8>, _> = Hours::<u8>::new(1).try_convert();
         assert_eq!(
             sec8_res,
-            Err(ConversionError::ScaleFailed(
+            Err(ConversionError::NumeratorConversionError(
                 u8::try_from(300u32).unwrap_err()
             ))
         );
         let sec8_res: Result<Seconds<u8>, _> = Seconds::<u32>::new(300).try_convert();
         assert_eq!(
             sec8_res,
-            Err(ConversionError::ValueConversionFailed(
+            Err(ConversionError::ValueConversionError(
                 u8::try_from(300u32).unwrap_err()
             ))
         );
