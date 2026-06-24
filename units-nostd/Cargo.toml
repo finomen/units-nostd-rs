@@ -1,6 +1,6 @@
 [package]
 name = "units-nostd"
-version = "0.0.1"
+version = ""
 edition = "2024"
 authors = ["Nikolai Filchenko <finomen812@gmail.com>"]
 license = "MIT"
