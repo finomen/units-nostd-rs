@@ -460,20 +460,21 @@
 extern crate core;
 
 mod prefixes;
-mod quantity;
+pub mod quantity;
 mod scale;
 
 use scale::ONE;
 
 use core::fmt::{Formatter, Pointer};
 
-pub use quantity::{ConversionError, Quantity, SiCompoundUnit};
+use quantity::Quantity;
+use quantity::si::SiCompoundUnitWrapper;
 pub use scale::Scale;
 
 macro_rules! pow_impl {
     ($unit:ty, $pow:literal) => {
         paste::paste! {
-            Quantity<T, {$unit::SCALE.pow($pow)}, crate::quantity::SiCompoundUnitWrapper<{$unit::UNIT.pow($pow)}>>
+            Quantity<T, {$unit::SCALE.pow($pow)}, crate::quantity::si::SiCompoundUnitWrapper<{$unit::UNIT.pow($pow)}>>
         }
     };
 }
@@ -481,7 +482,7 @@ macro_rules! pow_impl {
 macro_rules! div_impl {
     ($unit1:ty, $unit2:ty) => {
         paste::paste! {
-            Quantity<T, {$unit1::SCALE / $unit2::SCALE}, crate::quantity::SiCompoundUnitWrapper<{$unit1::UNIT / $unit2::UNIT}>>
+            Quantity<T, {$unit1::SCALE / $unit2::SCALE}, crate::quantity::si::SiCompoundUnitWrapper<{$unit1::UNIT / $unit2::UNIT}>>
         }
     };
 }
@@ -489,7 +490,7 @@ macro_rules! div_impl {
 macro_rules! mul_impl {
     ($unit1:ty, $unit2:ty) => {
         paste::paste! {
-            Quantity<T, {$unit1::SCALE * $unit2::SCALE}, crate::quantity::SiCompoundUnitWrapper<{$unit1::UNIT * $unit2::UNIT}>>
+            Quantity<T, {$unit1::SCALE * $unit2::SCALE}, crate::quantity::si::SiCompoundUnitWrapper<{$unit1::UNIT * $unit2::UNIT}>>
         }
     };
 }
@@ -497,7 +498,7 @@ macro_rules! mul_impl {
 macro_rules! scaled_impl {
     ($unit:ty, $scale:expr) => {
         paste::paste! {
-            Quantity<T, {<$unit>::SCALE * $scale}, crate::quantity::SiCompoundUnitWrapper<{<$unit>::UNIT}>>
+            Quantity<T, {<$unit>::SCALE * $scale}, crate::quantity::si::SiCompoundUnitWrapper<{<$unit>::UNIT}>>
         }
     };
 }
@@ -579,7 +580,7 @@ macro_rules! scalable_unit {
 
 mod base_units {
     use crate::Quantity;
-    use crate::quantity::{SiCompoundUnit, SiCompoundUnitWrapper};
+    use crate::quantity::si::{SiCompoundUnit, SiCompoundUnitWrapper};
     use crate::scale::ONE;
 
     pub(crate) type Unitless<T> = Quantity<
@@ -751,7 +752,8 @@ named_unit!(Unitless, base_units::Unitless<T>, "");
 
 #[cfg(feature = "length")]
 pub mod length {
-    use crate::{Quantity, base_units};
+    use crate::base_units;
+    use crate::quantity::Quantity;
 
     scalable_unit!(Meters, base_units::Meters<T>, "m", 1, {KILO, DECI, CENTI, MILLI, MICRO, NANO});
 }

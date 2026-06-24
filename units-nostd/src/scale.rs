@@ -4,14 +4,18 @@ use core::ops::{Div, Mul};
 #[derive(Debug, Clone, Copy, ConstParamTy)]
 #[derive_const(PartialEq, Eq)]
 #[doc(hidden)]
-/// Constructed via the provided unit aliases, not directly
+/// Scale relative to base unit
 pub struct Scale {
     numerator: u64,
     denominator: u64,
 }
 
 impl Scale {
-    pub(crate) const fn new(numerator: u64, denominator: u64) -> Scale {
+    /// Create new scale. Scale will be normalized
+    /// ```
+    /// assert_eq!(units::Scale::new(2, 4), units::Scale::new(1, 2));
+    /// ```
+    pub const fn new(numerator: u64, denominator: u64) -> Scale {
         Scale {
             numerator,
             denominator,

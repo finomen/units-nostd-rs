@@ -1,4 +1,5 @@
-use crate::scale::{ONE, Scale};
+pub mod errors;
+pub mod si;
 
 use core::error::Error;
 use core::fmt::{Debug, Display, Formatter};
@@ -7,88 +8,14 @@ use core::marker::{ConstParamTy, PhantomData};
 use core::ops::{Add, Div, Mul, Sub};
 use paste::paste;
 
+use crate::scale::{ONE, Scale};
+use errors::ConversionError;
+
+use si::SiCompoundUnit;
+use si::SiCompoundUnitWrapper;
+
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
-
-#[derive(Debug, PartialEq, Clone, Copy, Eq)]
-pub enum ConversionError<SE, VE> {
-    ScaleFailed(SE),
-    ValueConversionFailed(VE),
-}
-
-impl<SE, VE> Display for ConversionError<SE, VE>
-where
-    SE: Display,
-    VE: Display,
-{
-    fn fmt(&self, f: &mut Formatter<'_>) -> core::fmt::Result {
-        match self {
-            ConversionError::ScaleFailed(e) => write!(f, "Scale conversion failed: {}", e),
-            ConversionError::ValueConversionFailed(e) => {
-                write!(f, "Value conversion failed: {}", e)
-            }
-        }
-    }
-}
-impl<SE, VE> Error for ConversionError<SE, VE>
-where
-    SE: Display,
-    VE: Display,
-    SE: Debug,
-    VE: Debug,
-{
-}
-
-macro_rules! si_compound_unit {
-    ({ $( $base_unit:ident ),* $(,)? }) => {
-        #[derive(Debug, Clone, Copy, ConstParamTy)]
-        #[derive_const(PartialEq, Eq)]
-        #[doc(hidden)]
-        /// Constructed via the provided unit aliases, not directly
-        pub struct SiCompoundUnit {
-            $(pub(crate)  $base_unit : i32),*
-        }
-
-        impl SiCompoundUnit {
-            pub(crate) const fn pow(self, p: i32) -> Self {
-                Self {
-                    $($base_unit: self.$base_unit * p),*
-                }
-            }
-        }
-
-        const impl Mul<SiCompoundUnit> for SiCompoundUnit {
-            type Output = SiCompoundUnit;
-
-            fn mul(self, other: SiCompoundUnit) -> Self{
-                Self {
-                    $($base_unit: self.$base_unit + other.$base_unit),*
-                }
-            }
-        }
-
-        const impl Div<SiCompoundUnit> for SiCompoundUnit {
-            type Output = SiCompoundUnit;
-
-            fn div(self, other: SiCompoundUnit) -> Self{
-                Self {
-                    $($base_unit: self.$base_unit - other.$base_unit),*
-                }
-            }
-        }
-    }
-}
-
-si_compound_unit!({ meter, second, gram, kelvin, ampere, candela, mole, radians });
-
-#[derive(Debug, Hash, Default, PartialEq, Eq, PartialOrd, Ord)]
-#[doc(hidden)]
-/// Constructed via the provided unit aliases, not directly
-pub struct SiCompoundUnitWrapper<const U: SiCompoundUnit> {}
-
-impl<const U: SiCompoundUnit> SiCompoundUnitWrapper<U> {
-    pub(crate) const UNIT: SiCompoundUnit = U;
-}
 
 #[derive(Debug, Default, PartialOrd, Ord)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
@@ -207,7 +134,7 @@ where
     /// # Examples
     /// ```
     /// use units::time::{Minutes, Seconds};
-    /// # fn main() -> Result<(), units::ConversionError<core::num::TryFromIntError, core::convert::Infallible>> {
+    /// # fn main() -> Result<(), units::quantity::errors::ConversionError<core::num::TryFromIntError, core::convert::Infallible>> {
     /// let secs: Seconds<i32> = Minutes::<i32>::new(6).try_convert()?;
     /// assert_eq!(secs.value(), 360);
     /// # Ok(())
@@ -216,7 +143,7 @@ where
     /// Converting a value that does not fit the target type fails:
     /// ```
     /// use units::time::{Minutes, Seconds};
-    /// use units::ConversionError;
+    /// use units::quantity::errors::ConversionError;
     ///
     /// let res: Result<Seconds<u8>, _> = Minutes::<u32>::new(300).try_convert();
     /// assert_eq!(
@@ -252,7 +179,11 @@ where
         })
     }
 
-    pub(crate) const SCALE: Scale = S;
+    /// Current scale relative to the base unit.
+    pub const SCALE: Scale = S;
+
+    /// Quantity with same type and unit but different scale.
+    pub type WithScale<const S2: Scale> = Quantity<T, S2, U>;
 }
 
 impl<T, const S: Scale, const U: SiCompoundUnit> Quantity<T, S, SiCompoundUnitWrapper<U>>
