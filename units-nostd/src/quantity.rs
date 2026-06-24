@@ -43,12 +43,12 @@ pub trait UnitSub<T> {
 }
 
 /// Declare unit conversion
-pub(crate) trait UnitConvert<U, T, V, const S1: Scale, const S2: Scale> {
+pub trait UnitConvert<U, T, V, const S1: Scale, const S2: Scale> {
     fn convert(value: T) -> V;
 }
 
 /// Declare unit conversion
-pub(crate) trait UnitTryConvert<U, T, V, const S1: Scale, const S2: Scale> {
+pub trait UnitTryConvert<U, T, V, const S1: Scale, const S2: Scale> {
     type Error;
     fn try_convert(value: T) -> Result<V, Self::Error>;
 }

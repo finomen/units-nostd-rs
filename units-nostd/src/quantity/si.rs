@@ -21,13 +21,13 @@ macro_rules! si_compound_unit {
                 }
             }
 
-            pub(crate) const fn zero() -> Self {
+            pub const fn zero() -> Self {
                 Self {
                     $($base_unit: 0),*
                 }
             }
 
-            $(pub(crate) const fn $base_unit(mut self, v: i32) -> Self {
+            $(pub const fn $base_unit(mut self, v: i32) -> Self {
                 self.$base_unit = v;
                 self
             })*
