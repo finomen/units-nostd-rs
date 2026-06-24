@@ -1,0 +1,139 @@
+name: Cargo Tests
+
+on:
+  push:
+    branches: [ "master" ]
+  pull_request:
+    branches: [ "master" ]
+
+env:
+  CARGO_TERM_COLOR: always
+  NEXTEST_PROFILE: ci
+
+permissions:
+  contents: read
+  checks: write
+  pull-requests: write
+
+jobs:
+  fmt:
+    name: Check formatting
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install rustfmt
+        run: rustup component add rustfmt
+      - name: Check formatting
+        run: cargo fmt --all -- --check
+
+  clippy:
+    name: Clippy
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install clippy
+        run: rustup component add clippy
+      - name: Cache build dependencies
+        uses: Swatinem/rust-cache@v2
+        with:
+          key: clippy
+      - name: Run clippy
+        run: cargo clippy --all-targets --features full,serde -- -D warnings
+
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        profile: [ debug, release ]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Cache build dependencies
+        uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ matrix.profile }}
+      - name: Install cargo-nextest and cargo-llvm-cov
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-nextest,cargo-llvm-cov
+      - name: Install llvm-tools-preview
+        if: matrix.profile == 'debug'
+        run: rustup component add llvm-tools-preview
+      - name: Build
+        run: cargo build --verbose ${{ matrix.profile == 'release' && '--release' || '' }} --features full,serde
+      - name: Run tests with coverage (debug)
+        if: matrix.profile == 'debug'
+        run: cargo llvm-cov nextest --verbose --lcov --output-path lcov.info --features full,serde
+      - name: Run tests (release)
+        if: matrix.profile == 'release'
+        run: cargo nextest run --verbose --release --features full,serde
+
+      - name: Publish test results
+        uses: dorny/test-reporter@v1
+        if: success() || failure()
+        with:
+          name: Tests (${{ matrix.profile }})
+          path: target/nextest/ci/junit.xml
+          reporter: java-junit
+
+      - name: Upload coverage to Codecov
+        if: matrix.profile == 'debug'
+        uses: codecov/codecov-action@v4
+        with:
+          files: lcov.info
+          token: ${{ secrets.CODECOV_TOKEN }}
+
+  doctest:
+    name: Doc tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Cache build dependencies
+        uses: Swatinem/rust-cache@v2
+        with:
+          key: doctest
+      - name: Run doc tests
+        run: |
+          set -o pipefail
+          cargo test --doc --features full,serde 2>&1 | tee doctest_results.txt
+      - name: Convert results to JUnit
+        if: success() || failure()
+        run: |
+          python3 << 'EOF' > doctest_results.xml
+          import re
+          tests = []
+          with open('doctest_results.txt') as f:
+              for line in f:
+                  m = re.match(r'^test (.+) \.\.\. (ok|FAILED|ignored)', line.rstrip())
+                  if m:
+                      tests.append((m.group(1), m.group(2)))
+          failed = sum(1 for _, r in tests if r == 'FAILED')
+          print('<?xml version="1.0"?>')
+          print(f'<testsuites><testsuite name="doctests" tests="{len(tests)}" failures="{failed}">')
+          for name, result in tests:
+              n = name.replace('&', '&amp;').replace('"', '&quot;').replace('<', '&lt;')
+              tag = '<failure/>' if result == 'FAILED' else '<skipped/>' if result == 'ignored' else ''
+              print(f'  <testcase name="{n}">{tag}</testcase>')
+          print('</testsuite></testsuites>')
+          EOF
+      - name: Publish doc test results
+        uses: dorny/test-reporter@v1
+        if: success() || failure()
+        with:
+          name: Doc tests
+          path: doctest_results.xml
+          reporter: java-junit
+
+  publish-dry-run:
+    name: Publish dry-run
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@nightly
+      - name: Cache build dependencies
+        uses: Swatinem/rust-cache@v2
+        with:
+          key: publish-dry-run
+      - name: Publish check
+        run: cargo publish -Zpackage-workspace --workspace --dry-run --allow-dirty

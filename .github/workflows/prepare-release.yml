@@ -1,0 +1,80 @@
+name: Prepare Release
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Configure git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Install changelog preset
+        run: |
+          npm install --prefix /tmp/clog conventional-changelog-conventionalcommits@6
+          echo "NODE_PATH=/tmp/clog/node_modules" >> "$GITHUB_ENV"
+
+      - name: Generate changelog
+        id: changelog
+        uses: TriPSs/conventional-changelog-action@v5
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          output-file: CHANGELOG.md
+          tag-prefix: 'v'
+          release-count: 0
+          skip-version-file: true
+          skip-commit: true
+          skip-tag: true
+          git-push: false
+          skip-on-empty: false
+          config-file-path: .changelog.js
+
+      - name: Create release branch
+        env:
+          NEW_VERSION: ${{ steps.changelog.outputs.version }}
+        run: git checkout -b release_$NEW_VERSION
+
+      - name: Update versions in Cargo.toml files
+        env:
+          NEW_VERSION: ${{ steps.changelog.outputs.version }}
+        run: |
+          sed -i "0,/^version = /s/^version = \"[^\"]*\"/version = \"$NEW_VERSION\"/" sen6x-driver/Cargo.toml
+          sed -i "0,/^version = /s/^version = \"[^\"]*\"/version = \"$NEW_VERSION\"/" sen6x-macros/Cargo.toml
+          sed -i "s/sen6x-macros = { version = \"[^\"]*\"/sen6x-macros = { version = \"$NEW_VERSION\"/" sen6x-driver/Cargo.toml
+
+      - name: Commit release changes
+        env:
+          NEW_VERSION: ${{ steps.changelog.outputs.version }}
+        run: |
+          git add sen6x-driver/Cargo.toml sen6x-macros/Cargo.toml CHANGELOG.md
+          git commit -m "chore: bump version to $NEW_VERSION"
+
+      - name: Push release branch
+        env:
+          NEW_VERSION: ${{ steps.changelog.outputs.version }}
+        run: git push origin release_$NEW_VERSION
+
+      - name: Create pull request
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NEW_VERSION: ${{ steps.changelog.outputs.version }}
+        run: |
+          awk '/^## /{count++; if(count==2) exit} count==1' CHANGELOG.md > pr_body.md
+          gh pr create \
+            --title "chore(release): $NEW_VERSION" \
+            --body-file pr_body.md \
+            --base master \
+            --head "release_$NEW_VERSION"
+
