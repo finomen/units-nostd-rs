@@ -41,6 +41,47 @@ pub trait UnitSub<T> {
     type Result;
 }
 
+/// Declare unit conversion
+pub(crate) trait UnitConvert<U, T, V, const S1: Scale, const S2: Scale> {
+    fn convert(value: T) -> V;
+}
+
+/// Declare unit conversion
+pub(crate) trait UnitTryConvert<U, T, V, const S1: Scale, const S2: Scale> {
+    type Error;
+    fn try_convert(value: T) -> Result<V, Self::Error>;
+}
+
+impl<T, V, const S1: Scale, const S2: Scale, const U: si::SiCompoundUnit>
+    UnitConvert<si::SiCompoundUnitWrapper<U>, T, V, S1, S2> for si::SiCompoundUnitWrapper<U>
+where
+    V: From<T> + From<u64> + Mul<V, Output = V> + Div<V, Output = V>,
+{
+    fn convert(value: T) -> V {
+        let mul = S1 / S2;
+        V::from(value) * V::from(mul.numerator()) / V::from(mul.denominator())
+    }
+}
+
+impl<T, V, const S1: Scale, const S2: Scale, const U: si::SiCompoundUnit>
+    UnitTryConvert<si::SiCompoundUnitWrapper<U>, T, V, S1, S2> for si::SiCompoundUnitWrapper<U>
+where
+    V: TryFrom<T> + TryFrom<u64> + Mul<V, Output = V> + Div<V, Output = V>,
+{
+    type Error = ConversionError<<V as TryFrom<u64>>::Error, <V as TryFrom<T>>::Error>;
+    fn try_convert(value: T) -> Result<V, Self::Error> {
+        let mul = S1 / S2;
+        let cv = V::try_from(value).map_err( ConversionError::<<V as TryFrom<u64>>::Error, <V as TryFrom<T>>::Error>::ValueConversionFailed)?;
+        let cvn = V::try_from(mul.numerator()).map_err(|e| {
+            ConversionError::<<V as TryFrom<u64>>::Error, <V as TryFrom<T>>::Error>::ScaleFailed(e)
+        })?;
+        let cvd = V::try_from(mul.denominator()).map_err(|e| {
+            ConversionError::<<V as TryFrom<u64>>::Error, <V as TryFrom<T>>::Error>::ScaleFailed(e)
+        })?;
+        Ok(cv * cvn / cvd)
+    }
+}
+
 #[derive(Debug, Default, PartialOrd, Ord)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Quantity<T, const S: Scale, U> {
@@ -129,17 +170,13 @@ where
     /// let secs: Seconds<u64> = Minutes::<u64>::new(6).convert();
     /// assert_eq!(secs.value(), 360);
     /// ```
-    pub fn convert<V, const S2: Scale>(self) -> Quantity<V, S2, U>
+    pub fn convert<V, const S2: Scale, U2>(self) -> Quantity<V, S2, U2>
     where
         V: Copy,
-        V: From<T>,
-        V: From<u64>,
-        V: Mul<V, Output = V>,
-        V: Div<V, Output = V>,
+        U: UnitConvert<U2, T, V, S, S2>,
     {
-        let mul = S / S2;
-        Quantity::<V, S2, U> {
-            value: V::from(self.value) * V::from(mul.numerator()) / V::from(mul.denominator()),
+        Quantity::<V, S2, U2> {
+            value: <U as UnitConvert<U2, T, V, S, S2>>::convert(self.value),
             u: PhantomData,
         }
     }
@@ -175,30 +212,13 @@ where
     ///     Err(ConversionError::ValueConversionFailed(u8::try_from(300u32).unwrap_err())),
     /// );
     /// ```
-    #[allow(clippy::type_complexity)]
-    pub fn try_convert<V, const S2: Scale>(
-        self,
-    ) -> Result<
-        Quantity<V, S2, U>,
-        ConversionError<<V as TryFrom<u64>>::Error, <V as TryFrom<T>>::Error>,
-    >
+    pub fn try_convert<V, U2, const S2: Scale, E>(self) -> Result<Quantity<V, S2, U2>, E>
     where
         V: Copy,
-        V: TryFrom<T>,
-        V: TryFrom<u64>,
-        V: Mul<V, Output = V>,
-        V: Div<V, Output = V>,
+        U: UnitTryConvert<U2, T, V, S, S2, Error = E>,
     {
-        let mul = S / S2;
-        let cv = V::try_from(self.value).map_err( ConversionError::<<V as TryFrom<u64>>::Error, <V as TryFrom<T>>::Error>::ValueConversionFailed)?;
-        let cvn = V::try_from(mul.numerator()).map_err(|e| {
-            ConversionError::<<V as TryFrom<u64>>::Error, <V as TryFrom<T>>::Error>::ScaleFailed(e)
-        })?;
-        let cvd = V::try_from(mul.denominator()).map_err(|e| {
-            ConversionError::<<V as TryFrom<u64>>::Error, <V as TryFrom<T>>::Error>::ScaleFailed(e)
-        })?;
-        Ok(Quantity::<V, S2, U> {
-            value: cv * cvn / cvd,
+        Ok(Quantity::<V, S2, U2> {
+            value: <U as UnitTryConvert<U2, T, V, S, S2>>::try_convert(self.value())?,
             u: PhantomData,
         })
     }
