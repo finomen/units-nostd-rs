@@ -1,6 +1,7 @@
 pub mod errors;
 pub mod si;
 
+use core::convert::Infallible;
 use core::error::Error;
 use core::fmt::{Debug, Display, Formatter};
 use core::hash::{Hash, Hasher};
@@ -63,21 +64,21 @@ where
     }
 }
 
-impl<T, V, const S1: Scale, const S2: Scale, const U: si::SiCompoundUnit>
+impl<T, V, const S1: Scale, const S2: Scale, const U: si::SiCompoundUnit, E1, E2>
     UnitTryConvert<si::SiCompoundUnitWrapper<U>, T, V, S1, S2> for si::SiCompoundUnitWrapper<U>
 where
-    V: TryFrom<T> + TryFrom<u64> + Mul<V, Output = V> + Div<V, Output = V>,
+    V: TryFrom<T, Error = E1> + TryFrom<u64, Error = E2> + Mul<V, Output = V> + Div<V, Output = V>,
+    E1: Error + Copy,
+    E2: Error + Copy,
 {
-    type Error = ConversionError<<V as TryFrom<u64>>::Error, <V as TryFrom<T>>::Error>;
+    type Error = ConversionError<E1, E2, E2, Infallible>;
     fn try_convert(value: T) -> Result<V, Self::Error> {
         let mul = S1 / S2;
-        let cv = V::try_from(value).map_err( ConversionError::<<V as TryFrom<u64>>::Error, <V as TryFrom<T>>::Error>::ValueConversionFailed)?;
-        let cvn = V::try_from(mul.numerator()).map_err(|e| {
-            ConversionError::<<V as TryFrom<u64>>::Error, <V as TryFrom<T>>::Error>::ScaleFailed(e)
-        })?;
-        let cvd = V::try_from(mul.denominator()).map_err(|e| {
-            ConversionError::<<V as TryFrom<u64>>::Error, <V as TryFrom<T>>::Error>::ScaleFailed(e)
-        })?;
+        let cv = V::try_from(value).map_err(ConversionError::ValueConversionError)?;
+        let cvn =
+            V::try_from(mul.numerator()).map_err(ConversionError::NumeratorConversionError)?;
+        let cvd =
+            V::try_from(mul.denominator()).map_err(ConversionError::DenominatorConversionError)?;
         Ok(cv * cvn / cvd)
     }
 }
@@ -135,7 +136,7 @@ where
     /// let distance = Meters::new(10);
     /// assert_eq!(distance.value(), 10);
     /// ```
-    pub fn new(value: T) -> Self {
+    pub const fn new(value: T) -> Self {
         Self {
             value,
             u: PhantomData,
@@ -195,27 +196,25 @@ where
     /// # Examples
     /// ```
     /// use units::time::{Minutes, Seconds};
-    /// # fn main() -> Result<(), units::quantity::errors::ConversionError<core::num::TryFromIntError, core::convert::Infallible>> {
-    /// let secs: Seconds<i32> = Minutes::<i32>::new(6).try_convert()?;
-    /// assert_eq!(secs.value(), 360);
-    /// # Ok(())
-    /// # }
+    /// let secs: Result<Seconds<i32>, _> = Minutes::<i32>::new(6).try_convert();
+    /// assert_eq!(secs, Ok(Seconds::<i32>::new(360)));
     /// ```
     /// Converting a value that does not fit the target type fails:
     /// ```
     /// use units::time::{Minutes, Seconds};
-    /// use units::quantity::errors::ConversionError;
+    /// use units::quantity::errors::{ConversionError};
     ///
     /// let res: Result<Seconds<u8>, _> = Minutes::<u32>::new(300).try_convert();
     /// assert_eq!(
     ///     res,
-    ///     Err(ConversionError::ValueConversionFailed(u8::try_from(300u32).unwrap_err())),
+    ///     Err(ConversionError::ValueConversionError( u8::try_from(300u32).unwrap_err())),
     /// );
     /// ```
     pub fn try_convert<V, U2, const S2: Scale, E>(self) -> Result<Quantity<V, S2, U2>, E>
     where
         V: Copy,
         U: UnitTryConvert<U2, T, V, S, S2, Error = E>,
+        E: Error,
     {
         Ok(Quantity::<V, S2, U2> {
             value: <U as UnitTryConvert<U2, T, V, S, S2>>::try_convert(self.value())?,
@@ -313,7 +312,8 @@ where
 mod tests {
     use crate::Quantity;
     use crate::length::*;
-    use crate::quantity::{ConversionError, SiCompoundUnit, SiCompoundUnitWrapper, si};
+    use crate::quantity::errors::ConversionError;
+    use crate::quantity::{SiCompoundUnit, SiCompoundUnitWrapper, si};
     use crate::scale::*;
     use crate::time::*;
     use core::marker::PhantomData;
@@ -486,14 +486,14 @@ mod tests {
         let sec8_res: Result<Seconds<u8>, _> = Hours::<u8>::new(1).try_convert();
         assert_eq!(
             sec8_res,
-            Err(ConversionError::ScaleFailed(
+            Err(ConversionError::NumeratorConversionError(
                 u8::try_from(300u32).unwrap_err()
             ))
         );
         let sec8_res: Result<Seconds<u8>, _> = Seconds::<u32>::new(300).try_convert();
         assert_eq!(
             sec8_res,
-            Err(ConversionError::ValueConversionFailed(
+            Err(ConversionError::ValueConversionError(
                 u8::try_from(300u32).unwrap_err()
             ))
         );
