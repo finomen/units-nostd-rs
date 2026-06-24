@@ -188,10 +188,11 @@ where
     /// truncating.
     ///
     /// # Errors
-    /// Returns [`ConversionError::ValueConversionFailed`] if the wrapped
+    /// Returns [`ConversionError::ValueConversionError`] if the wrapped
     /// value cannot be represented in the target type `V`, or
-    /// [`ConversionError::ScaleFailed`] if the rescaling factor's
-    /// numerator or denominator cannot be represented in `V`.
+    /// [`ConversionError::NumeratorConversionError`] /
+    /// [`ConversionError::DenominatorConversionError`] if the rescaling
+    /// factor's numerator or denominator cannot be represented in `V`.
     ///
     /// # Examples
     /// ```
