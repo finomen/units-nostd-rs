@@ -90,7 +90,7 @@ impl<const U: SiCompoundUnit> SiCompoundUnitWrapper<U> {
     pub(crate) const UNIT: SiCompoundUnit = U;
 }
 
-#[derive(Debug, Hash, Default, PartialOrd, Ord)]
+#[derive(Debug, Default, PartialOrd, Ord)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Quantity<T, const S: Scale, U> {
     value: T,
@@ -120,6 +120,15 @@ where
     }
 }
 impl<T, const S: Scale, U> Eq for Quantity<T, S, U> where T: Eq {}
+
+impl<T, const S: Scale, U> Hash for Quantity<T, S, U>
+where
+    T: Hash,
+{
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.value.hash(state)
+    }
+}
 
 impl<T, const S: Scale, U> Quantity<T, S, U>
 where
@@ -215,6 +224,7 @@ where
     ///     Err(ConversionError::ValueConversionFailed(u8::try_from(300u32).unwrap_err())),
     /// );
     /// ```
+    #[allow(clippy::type_complexity)]
     pub fn try_convert<V, const S2: Scale>(
         self,
     ) -> Result<
@@ -229,7 +239,7 @@ where
         V: Div<V, Output = V>,
     {
         let mul = S / S2;
-        let cv = V::try_from(self.value).map_err(|e| ConversionError::<<V as TryFrom<u64>>::Error, <V as TryFrom<T>>::Error>::ValueConversionFailed(e))?;
+        let cv = V::try_from(self.value).map_err( ConversionError::<<V as TryFrom<u64>>::Error, <V as TryFrom<T>>::Error>::ValueConversionFailed)?;
         let cvn = V::try_from(mul.numerator()).map_err(|e| {
             ConversionError::<<V as TryFrom<u64>>::Error, <V as TryFrom<T>>::Error>::ScaleFailed(e)
         })?;
