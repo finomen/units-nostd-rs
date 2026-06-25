@@ -544,6 +544,11 @@ macro_rules! named_unit_ex {
             }
         }
 
+        paste::paste! {
+            pub(crate) fn [<$alias:snake _symbol>]() -> impl core::fmt::Display { $symbol }
+            pub(crate) const [<$alias:snake:upper _SCALE>] : crate::Scale = $alias::<()>::SCALE;
+        }
+
         #[cfg(test)]
         paste::paste! {
             #[test]
@@ -864,11 +869,21 @@ pub mod wave_number {
 pub mod mass_density {
     use crate::Quantity;
     use crate::length::Meters;
-    use crate::mass::KiloGrams;
+    use crate::mass::*;
     use crate::scale::{ONE, Scale};
-    use crate::volume::MetersCubic;
+    use crate::volume::*;
 
     named_unit!(KilogramPerCubicMeter, div!(KiloGrams, MetersCubic), "kg/m³");
+    named_unit!(
+        GramPerCubicCentieter,
+        div!(Grams, CentiMetersCubic),
+        "g/cm³"
+    );
+    named_unit!(
+        MicrogramPerCubicMeter,
+        div!(MicroGrams, MetersCubic),
+        "μg/m³"
+    );
 }
 
 #[cfg(feature = "specific_volume")]

@@ -34,7 +34,7 @@ modules they are built from. Enable everything at once with the `full` feature.
 | acceleration                      | length, time                             | m/s²                   |
 | velocity                          | length, time                             | ㎧, kph                 |
 | wave_number                       | length                                   | m⁻¹                    |
-| mass_density                      | length, mass, volume                     | kg/m³                  |
+| mass_density                      | length, mass, volume                     | kg/m³, g/cm³, μg/m³    |
 | specific_volume                   | length, mass, volume                     | m³/kg                  |
 | current_density                   | area, electric_current                   | A/m²                   |
 | magnetic_field_strength           | electric_current, length                 | A/m                    |
