@@ -540,7 +540,11 @@ macro_rules! named_unit_ex {
             T: Copy,
         {
             fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-                write!(f, "{}{}{}", self.value(), $prefix, $symbol)
+                if let Some(p) = f.precision() {
+                    write!(f, "{:.*}{}{}", p, self.value(), $prefix, $symbol)
+                } else {
+                    write!(f, "{}{}{}", self.value(), $prefix, $symbol)
+                }
             }
         }
 

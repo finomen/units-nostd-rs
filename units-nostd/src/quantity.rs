@@ -521,6 +521,14 @@ mod tests {
         );
     }
 
+    #[test]
+    fn test_format() {
+        let meters = Meters::<f32>::new(10.1239);
+        assert_eq!(format!("{:.2}", meters), "10.12m");
+        assert_eq!(format!("{:.1}", meters), "10.1m");
+        assert_eq!(format!("{:.3}", meters), "10.124m");
+    }
+
     #[cfg(all(test, feature = "temperature"))]
     #[test]
     fn test_celsius_conversion() {
