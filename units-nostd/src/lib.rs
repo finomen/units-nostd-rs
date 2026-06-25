@@ -646,6 +646,7 @@ pub mod temperature {
     use crate::{Scale, prefixes};
     use core::convert::Infallible;
     use core::ops::{Add, Div, Mul, Sub};
+    use num::{NumCast, ToPrimitive};
 
     scalable_unit!(Kelvins, base_units::Kelvins<T>, "K", 1, { MILLI });
 
@@ -686,22 +687,19 @@ pub mod temperature {
         }
     }
 
-    impl<T, V, const S1: Scale, const S2: Scale, E1, EU> UnitTryConvert<Celsius, T, V, S1, S2>
+    impl<T, V, const S1: Scale, const S2: Scale, E1> UnitTryConvert<Celsius, T, V, S1, S2>
         for si::Kelvin<1>
     where
-        V: Sub<V, Output = V>
-            + Div<V, Output = V>
-            + Mul<V, Output = V>
-            + TryFrom<T>
-            + TryFrom<u64, Error = EU>
-            + Copy,
-        <V as TryFrom<T>>::Error: core::error::Error,
+        V: Sub<V, Output = V> + Div<V, Output = V> + Mul<V, Output = V> + NumCast + Copy,
         si::Kelvin<1>: UnitTryConvert<si::Kelvin<1>, T, V, S1, S2, Error = E1>,
         E1: core::error::Error,
-        EU: core::error::Error + Copy,
     {
-        type Error =
-            ConversionError<E1, Infallible, Infallible, ConversionError<EU, EU, EU, Infallible>>;
+        type Error = ConversionError<
+            E1,
+            Infallible,
+            Infallible,
+            ConversionError<ConversionError, ConversionError, ConversionError, Infallible>,
+        >;
         fn try_convert(value: T) -> Result<V, Self::Error> {
             let vk =
                 <si::Kelvin<1> as UnitTryConvert<si::Kelvin<1>, T, V, S1, S2>>::try_convert(value)
@@ -729,21 +727,20 @@ pub mod temperature {
         }
     }
 
-    impl<T, V, const S1: Scale, const S2: Scale, E1, EU> UnitTryConvert<si::Kelvin<1>, T, V, S1, S2>
+    impl<T, V, const S1: Scale, const S2: Scale, E1> UnitTryConvert<si::Kelvin<1>, T, V, S1, S2>
         for Celsius
     where
-        V: Add<V, Output = V>
-            + Div<V, Output = V>
-            + Mul<V, Output = V>
-            + TryFrom<T>
-            + TryFrom<u64, Error = EU>
-            + Copy,
+        V: Add<V, Output = V> + Div<V, Output = V> + Mul<V, Output = V> + Copy + NumCast,
+        T: ToPrimitive,
         si::Kelvin<1>: UnitTryConvert<si::Kelvin<1>, T, V, S1, S2, Error = E1>,
         E1: core::error::Error,
-        EU: core::error::Error + Copy,
     {
-        type Error =
-            ConversionError<E1, Infallible, Infallible, ConversionError<EU, EU, EU, Infallible>>;
+        type Error = ConversionError<
+            E1,
+            Infallible,
+            Infallible,
+            ConversionError<ConversionError, ConversionError, ConversionError, Infallible>,
+        >;
         fn try_convert(value: T) -> Result<V, Self::Error> {
             let vk =
                 <si::Kelvin<1> as UnitTryConvert<si::Kelvin<1>, T, V, S1, S2>>::try_convert(value)
@@ -752,6 +749,33 @@ pub mod temperature {
                 .try_convert()
                 .map_err(ConversionError::OffsetConversionError)?;
             Ok(vk + offset.value())
+        }
+    }
+
+    impl<T, V, const S1: Scale, const S2: Scale> UnitConvert<Celsius, T, V, S1, S2> for Celsius
+    where
+        V: Add<V, Output = V>
+            + Div<V, Output = V>
+            + Mul<V, Output = V>
+            + From<T>
+            + From<u64>
+            + Copy,
+    {
+        fn convert(value: T) -> V {
+            <si::Kelvin<1> as UnitConvert<si::Kelvin<1>, T, V, S1, S2>>::convert(value)
+        }
+    }
+
+    impl<T, V, const S1: Scale, const S2: Scale, E1> UnitTryConvert<Celsius, T, V, S1, S2> for Celsius
+    where
+        V: Add<V, Output = V> + Div<V, Output = V> + Mul<V, Output = V> + NumCast + Copy,
+        T: ToPrimitive,
+        si::Kelvin<1>: UnitTryConvert<si::Kelvin<1>, T, V, S1, S2, Error = E1>,
+        E1: core::error::Error,
+    {
+        type Error = <si::Kelvin<1> as UnitTryConvert<si::Kelvin<1>, T, V, S1, S2>>::Error;
+        fn try_convert(value: T) -> Result<V, Self::Error> {
+            <si::Kelvin<1> as UnitTryConvert<si::Kelvin<1>, T, V, S1, S2>>::try_convert(value)
         }
     }
 
