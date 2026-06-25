@@ -87,6 +87,17 @@ where
     }
 }
 
+/// Quantity/unit information
+pub trait QuantityInfo {
+    /// Unit type.
+    type Unit;
+    /// Current scale relative to the base unit.
+    const SCALE: Scale;
+
+    /// Quantity with same type and unit but different scale.
+    type WithScale<const S2: Scale>;
+}
+
 #[derive(Debug, Default, PartialOrd, Ord)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Quantity<T, const S: Scale, U> {
@@ -226,12 +237,12 @@ where
             u: PhantomData,
         })
     }
+}
 
-    /// Current scale relative to the base unit.
-    pub const SCALE: Scale = S;
-
-    /// Quantity with same type and unit but different scale.
-    pub type WithScale<const S2: Scale> = Quantity<T, S2, U>;
+impl<T, const S: Scale, U> QuantityInfo for Quantity<T, S, U> {
+    type Unit = U;
+    const SCALE: Scale = S;
+    type WithScale<const S2: Scale> = Quantity<T, S2, U>;
 }
 
 impl<T, const S: Scale, const U: SiCompoundUnit> Quantity<T, S, SiCompoundUnitWrapper<U>>

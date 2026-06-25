@@ -544,11 +544,6 @@ macro_rules! named_unit_ex {
             }
         }
 
-        paste::paste! {
-            pub(crate) fn [<$alias:snake _symbol>]() -> impl core::fmt::Display { $symbol }
-            pub(crate) const [<$alias:snake:upper _SCALE>] : crate::Scale = $alias::<()>::SCALE;
-        }
-
         #[cfg(test)]
         paste::paste! {
             #[test]
@@ -586,8 +581,8 @@ macro_rules! scalable_unit {
 }
 
 mod base_units {
-    use crate::Quantity;
     use crate::quantity::si::{SiCompoundUnit, SiCompoundUnitWrapper};
+    use crate::quantity::{Quantity, QuantityInfo};
     use crate::scale::ONE;
 
     pub(crate) type Unitless<T> =
@@ -608,7 +603,7 @@ named_unit!(Unitless, base_units::Unitless<T>, "");
 #[cfg(feature = "length")]
 pub mod length {
     use crate::base_units;
-    use crate::quantity::Quantity;
+    use crate::quantity::{Quantity, QuantityInfo};
 
     scalable_unit!(Meters, base_units::Meters<T>, "m", 1, {KILO, DECI, CENTI, MILLI, MICRO, NANO});
 }
@@ -624,9 +619,10 @@ pub mod angle {
 
 #[cfg(feature = "time")]
 pub mod time {
+    use crate::base_units;
     use crate::prefixes;
+    use crate::quantity::{Quantity, QuantityInfo};
     use crate::scale::{ONE, Scale};
-    use crate::{Quantity, base_units};
 
     named_unit!(Seconds, base_units::Seconds<T>, "s");
     named_unit!(Minutes, scale!(Seconds, Scale::new(60, 1)), "min");
@@ -635,19 +631,21 @@ pub mod time {
 
 #[cfg(feature = "mass")]
 pub mod mass {
+    use crate::base_units;
     use crate::prefixes;
+    use crate::quantity::{Quantity, QuantityInfo};
     use crate::scale::ONE;
-    use crate::{Quantity, base_units};
 
     scalable_unit!(Grams, base_units::Grams<T>, "g", 1, {KILO, MILLI, MICRO});
 }
 
 #[cfg(feature = "temperature")]
 pub mod temperature {
+    use crate::base_units;
     use crate::quantity::errors::ConversionError;
+    use crate::quantity::{Quantity, QuantityInfo};
     use crate::quantity::{UnitConvert, UnitTryConvert, si};
     use crate::scale::ONE;
-    use crate::{Quantity, base_units};
     use crate::{Scale, prefixes};
     use core::convert::Infallible;
     use core::ops::{Add, Div, Mul, Sub};
@@ -816,9 +814,9 @@ pub mod amount_of_substance {
 
 #[cfg(feature = "area")]
 pub mod area {
-    use crate::Quantity;
     use crate::length::Meters;
     use crate::prefixes;
+    use crate::quantity::{Quantity, QuantityInfo};
     use crate::scale::ONE;
 
     scalable_unit!(MetersSquared, pow!(Meters, 2), "m²", 2, {KILO, DECI, CENTI, MILLI});
@@ -826,9 +824,9 @@ pub mod area {
 
 #[cfg(feature = "volume")]
 pub mod volume {
-    use crate::Quantity;
     use crate::length::Meters;
     use crate::prefixes;
+    use crate::quantity::{Quantity, QuantityInfo};
     use crate::scale::ONE;
 
     scalable_unit!(MetersCubic, pow!(Meters, 3), "m³", 3, {DECI, CENTI, MILLI});
@@ -836,8 +834,8 @@ pub mod volume {
 
 #[cfg(feature = "acceleration")]
 pub mod acceleration {
-    use crate::Quantity;
     use crate::length::Meters;
+    use crate::quantity::{Quantity, QuantityInfo};
     use crate::scale::{ONE, Scale};
     use crate::time::Seconds;
 
@@ -847,8 +845,8 @@ pub mod acceleration {
 
 #[cfg(feature = "velocity")]
 pub mod velocity {
-    use crate::Quantity;
     use crate::length::{KiloMeters, Meters};
+    use crate::quantity::{Quantity, QuantityInfo};
     use crate::scale::{ONE, Scale};
     use crate::time::{Hours, Seconds};
 
@@ -858,8 +856,8 @@ pub mod velocity {
 
 #[cfg(feature = "wave_number")]
 pub mod wave_number {
-    use crate::Quantity;
     use crate::length::Meters;
+    use crate::quantity::{Quantity, QuantityInfo};
     use crate::scale::{ONE, Scale};
 
     named_unit!(ReciprocalMeter, pow!(Meters, -1), "m⁻¹");
@@ -867,9 +865,9 @@ pub mod wave_number {
 
 #[cfg(feature = "mass_density")]
 pub mod mass_density {
-    use crate::Quantity;
     use crate::length::Meters;
     use crate::mass::*;
+    use crate::quantity::{Quantity, QuantityInfo};
     use crate::scale::{ONE, Scale};
     use crate::volume::*;
 
@@ -888,9 +886,9 @@ pub mod mass_density {
 
 #[cfg(feature = "specific_volume")]
 pub mod specific_volume {
-    use crate::Quantity;
     use crate::length::Meters;
     use crate::mass::KiloGrams;
+    use crate::quantity::{Quantity, QuantityInfo};
     use crate::scale::{ONE, Scale};
     use crate::volume::MetersCubic;
 
@@ -899,9 +897,9 @@ pub mod specific_volume {
 
 #[cfg(feature = "current_density")]
 pub mod current_density {
-    use crate::Quantity;
     use crate::area::MetersSquared;
     use crate::electric_current::Amperes;
+    use crate::quantity::{Quantity, QuantityInfo};
     use crate::scale::{ONE, Scale};
 
     named_unit!(AmperePerSquareMeter, div!(Amperes, MetersSquared), "A/m²");
@@ -909,17 +907,17 @@ pub mod current_density {
 
 #[cfg(feature = "magnetic_field_strength")]
 pub mod magnetic_field_strength {
-    use crate::Quantity;
     use crate::electric_current::Amperes;
     use crate::length::Meters;
+    use crate::quantity::{Quantity, QuantityInfo};
 
     named_unit!(AmperePerMeter, div!(Amperes, Meters), "A/m");
 }
 
 #[cfg(feature = "amount_of_substance_concentration")]
 pub mod amount_of_substance_concentration {
-    use crate::Quantity;
     use crate::amount_of_substance::Moles;
+    use crate::quantity::{Quantity, QuantityInfo};
     use crate::volume::MetersCubic;
 
     named_unit!(MolPerCubicMeter, div!(Moles, MetersCubic), "mol/m³");
@@ -927,9 +925,9 @@ pub mod amount_of_substance_concentration {
 
 #[cfg(feature = "luminance")]
 pub mod luminance {
-    use crate::Quantity;
     use crate::area::MetersSquared;
     use crate::luminous_intensity::Candelas;
+    use crate::quantity::{Quantity, QuantityInfo};
 
     named_unit!(
         CandelaPerSquareMeter,
@@ -940,7 +938,7 @@ pub mod luminance {
 
 #[cfg(feature = "frequency")]
 pub mod frequency {
-    use crate::Quantity;
+    use crate::quantity::{Quantity, QuantityInfo};
     use crate::time::Seconds;
 
     named_unit!(Hertz, pow!(Seconds, -1), "Hz");
@@ -948,27 +946,27 @@ pub mod frequency {
 
 #[cfg(feature = "force")]
 pub mod force {
-    use crate::Quantity;
     use crate::acceleration::MetersPerSecondPerSecond;
     use crate::length::Meters;
     use crate::mass::KiloGrams;
+    use crate::quantity::{Quantity, QuantityInfo};
 
     named_unit!(Newtons, mul!(KiloGrams, MetersPerSecondPerSecond), "N");
 }
 
 #[cfg(feature = "energy")]
 pub mod energy {
-    use crate::Quantity;
     use crate::force::Newtons;
     use crate::length::Meters;
+    use crate::quantity::{Quantity, QuantityInfo};
 
     named_unit!(Joules, mul!(Newtons, Meters), "J");
 }
 
 #[cfg(feature = "electric_charge")]
 pub mod electric_charge {
-    use crate::Quantity;
     use crate::electric_current::Amperes;
+    use crate::quantity::{Quantity, QuantityInfo};
     use crate::time::Seconds;
 
     named_unit!(Coulombs, mul!(Amperes, Seconds), "C");
@@ -976,8 +974,8 @@ pub mod electric_charge {
 
 #[cfg(feature = "power")]
 pub mod power {
-    use crate::Quantity;
     use crate::energy::Joules;
+    use crate::quantity::{Quantity, QuantityInfo};
     use crate::time::Seconds;
 
     named_unit!(Watts, div!(Joules, Seconds), "W");
@@ -985,35 +983,35 @@ pub mod power {
 
 #[cfg(feature = "potential_difference")]
 pub mod potential_difference {
-    use crate::Quantity;
     use crate::electric_current::Amperes;
     use crate::power::Watts;
+    use crate::quantity::{Quantity, QuantityInfo};
 
     named_unit!(Volts, div!(Watts, Amperes), "V");
 }
 
 #[cfg(feature = "capacitance")]
 pub mod capacitance {
-    use crate::Quantity;
     use crate::electric_charge::Coulombs;
     use crate::potential_difference::Volts;
+    use crate::quantity::{Quantity, QuantityInfo};
 
     named_unit!(Farad, div!(Coulombs, Volts), "F");
 }
 
 #[cfg(feature = "electrical_resistance")]
 pub mod electrical_resistance {
-    use crate::Quantity;
     use crate::electric_current::Amperes;
     use crate::potential_difference::Volts;
+    use crate::quantity::{Quantity, QuantityInfo};
 
     named_unit!(Ohms, div!(Volts, Amperes), "Ω");
 }
 
 #[cfg(feature = "magnetic_flux")]
 pub mod magnetic_flux {
-    use crate::Quantity;
     use crate::potential_difference::Volts;
+    use crate::quantity::{Quantity, QuantityInfo};
     use crate::time::Seconds;
 
     named_unit!(Weber, mul!(Volts, Seconds), "Wb");
@@ -1021,35 +1019,35 @@ pub mod magnetic_flux {
 
 #[cfg(feature = "magnetic_flux_density")]
 pub mod magnetic_flux_density {
-    use crate::Quantity;
     use crate::area::MetersSquared;
     use crate::magnetic_flux::Weber;
+    use crate::quantity::{Quantity, QuantityInfo};
 
     named_unit!(Tesla, mul!(Weber, MetersSquared), "T");
 }
 
 #[cfg(feature = "inductance")]
 pub mod inductance {
-    use crate::Quantity;
     use crate::electric_current::Amperes;
     use crate::magnetic_flux::Weber;
+    use crate::quantity::{Quantity, QuantityInfo};
 
     named_unit!(Henry, div!(Weber, Amperes), "H");
 }
 
 #[cfg(feature = "pressure")]
 pub mod pressure {
-    use crate::Quantity;
     use crate::area::MetersSquared;
     use crate::force::Newtons;
+    use crate::quantity::{Quantity, QuantityInfo};
 
     scalable_unit!(Pascals, div!(Newtons, MetersSquared), "Pa", 1, {MEGA,KILO,HECTO,MILLI});
 }
 
 #[cfg(feature = "dynamic_viscosity")]
 pub mod dynamic_viscosity {
-    use crate::Quantity;
     use crate::pressure::Pascals;
+    use crate::quantity::{Quantity, QuantityInfo};
     use crate::time::Seconds;
 
     named_unit!(PascalSeconds, mul!(Pascals, Seconds), "Pa·s");
@@ -1057,17 +1055,17 @@ pub mod dynamic_viscosity {
 
 #[cfg(feature = "surface_tension")]
 pub mod surface_tension {
-    use crate::Quantity;
     use crate::force::Newtons;
     use crate::length::Meters;
+    use crate::quantity::{Quantity, QuantityInfo};
 
     named_unit!(NewtonsPerMeter, div!(Newtons, Meters), "N/m");
 }
 
 #[cfg(feature = "angular_velocity")]
 pub mod angular_velocity {
-    use crate::Quantity;
     use crate::angle::Radians;
+    use crate::quantity::{Quantity, QuantityInfo};
     use crate::time::Seconds;
 
     named_unit!(RadiansPerSecond, div!(Radians, Seconds), "rad/s");
@@ -1075,8 +1073,8 @@ pub mod angular_velocity {
 
 #[cfg(feature = "angular_acceleration")]
 pub mod angular_acceleration {
-    use crate::Quantity;
     use crate::angle::Radians;
+    use crate::quantity::{Quantity, QuantityInfo};
     use crate::time::Seconds;
 
     type S2<T> = pow!(Seconds, 2);
@@ -1085,9 +1083,9 @@ pub mod angular_acceleration {
 
 #[cfg(feature = "heat_flux_density")]
 pub mod heat_flux_density {
-    use crate::Quantity;
     use crate::length::Meters;
     use crate::power::Watts;
+    use crate::quantity::{Quantity, QuantityInfo};
 
     type M2<T> = pow!(Meters, 2);
     named_unit!(WattsPerSquareMeter, div!(Watts, M2), "W/m²");
@@ -1095,8 +1093,8 @@ pub mod heat_flux_density {
 
 #[cfg(feature = "entropy")]
 pub mod entropy {
-    use crate::Quantity;
     use crate::energy::Joules;
+    use crate::quantity::{Quantity, QuantityInfo};
     use crate::temperature::Kelvins;
 
     named_unit!(JoulesPerKelvin, div!(Joules, Kelvins), "J/K");
@@ -1104,9 +1102,9 @@ pub mod entropy {
 
 #[cfg(feature = "specific_heat_capacity")]
 pub mod specific_heat_capacity {
-    use crate::Quantity;
     use crate::energy::Joules;
     use crate::mass::KiloGrams;
+    use crate::quantity::{Quantity, QuantityInfo};
     use crate::temperature::Kelvins;
 
     type KgK<T> = mul!(KiloGrams, Kelvins);
@@ -1115,19 +1113,19 @@ pub mod specific_heat_capacity {
 
 #[cfg(feature = "specific_energy")]
 pub mod specific_energy {
-    use crate::Quantity;
     use crate::energy::Joules;
     use crate::mass::KiloGrams;
+    use crate::quantity::{Quantity, QuantityInfo};
 
     named_unit!(JoulesPerKilogram, div!(Joules, KiloGrams), "J/kg");
 }
 
 #[cfg(feature = "thermal_conductivity")]
 pub mod thermal_conductivity {
-    use crate::Quantity;
     use crate::energy::Joules;
     use crate::length::Meters;
     use crate::power::Watts;
+    use crate::quantity::{Quantity, QuantityInfo};
     use crate::temperature::Kelvins;
 
     type M2<T> = pow!(Meters, 2);
@@ -1137,18 +1135,18 @@ pub mod thermal_conductivity {
 
 #[cfg(feature = "electric_field_strength")]
 pub mod electric_field_strength {
-    use crate::Quantity;
     use crate::length::Meters;
     use crate::potential_difference::Volts;
+    use crate::quantity::{Quantity, QuantityInfo};
 
     named_unit!(VoltsPerMeter, div!(Volts, Meters), "V/m");
 }
 
 #[cfg(feature = "electric_charge_density")]
 pub mod electric_charge_density {
-    use crate::Quantity;
     use crate::electric_charge::Coulombs;
     use crate::length::Meters;
+    use crate::quantity::{Quantity, QuantityInfo};
 
     type M3<T> = pow!(Meters, 3);
     named_unit!(CoulombsPerCubicMeter, div!(Coulombs, M3), "C/m³");
@@ -1156,9 +1154,9 @@ pub mod electric_charge_density {
 
 #[cfg(feature = "electric_flux_density")]
 pub mod electric_flux_density {
-    use crate::Quantity;
     use crate::electric_charge::Coulombs;
     use crate::length::Meters;
+    use crate::quantity::{Quantity, QuantityInfo};
 
     type M2<T> = pow!(Meters, 2);
     named_unit!(CoulombsPerSquareMeter, div!(Coulombs, M2), "C/m²");
@@ -1166,18 +1164,18 @@ pub mod electric_flux_density {
 
 #[cfg(feature = "molar_energy")]
 pub mod molar_energy {
-    use crate::Quantity;
     use crate::amount_of_substance::Moles;
     use crate::energy::Joules;
+    use crate::quantity::{Quantity, QuantityInfo};
 
     named_unit!(JoulesPerMole, div!(Joules, Moles), "J/mol");
 }
 
 #[cfg(feature = "molar_entropy")]
 pub mod molar_entropy {
-    use crate::Quantity;
     use crate::amount_of_substance::Moles;
     use crate::energy::Joules;
+    use crate::quantity::{Quantity, QuantityInfo};
     use crate::temperature::Kelvins;
 
     type MK<T> = mul!(Moles, Kelvins);
