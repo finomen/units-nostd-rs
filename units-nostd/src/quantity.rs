@@ -7,6 +7,7 @@ use core::fmt::{Debug, Display, Formatter};
 use core::hash::{Hash, Hasher};
 use core::marker::{ConstParamTy, PhantomData};
 use core::ops::{Add, Div, Mul, Sub};
+use num::{NumCast, ToPrimitive};
 use paste::paste;
 
 use crate::scale::{ONE, Scale};
@@ -64,21 +65,24 @@ where
     }
 }
 
-impl<T, V, const S1: Scale, const S2: Scale, const U: si::SiCompoundUnit, E1, E2>
+impl<T, V, const S1: Scale, const S2: Scale, const U: si::SiCompoundUnit>
     UnitTryConvert<si::SiCompoundUnitWrapper<U>, T, V, S1, S2> for si::SiCompoundUnitWrapper<U>
 where
-    V: TryFrom<T, Error = E1> + TryFrom<u64, Error = E2> + Mul<V, Output = V> + Div<V, Output = V>,
-    E1: Error + Copy,
-    E2: Error + Copy,
+    V: NumCast + Mul<V, Output = V> + Div<V, Output = V>,
+    T: ToPrimitive,
 {
-    type Error = ConversionError<E1, E2, E2, Infallible>;
+    type Error = ConversionError<ConversionError, ConversionError, ConversionError, Infallible>;
     fn try_convert(value: T) -> Result<V, Self::Error> {
         let mul = S1 / S2;
-        let cv = V::try_from(value).map_err(ConversionError::ValueConversionError)?;
-        let cvn =
-            V::try_from(mul.numerator()).map_err(ConversionError::NumeratorConversionError)?;
-        let cvd =
-            V::try_from(mul.denominator()).map_err(ConversionError::DenominatorConversionError)?;
+        let cv = V::from(value).ok_or(ConversionError::ValueConversionError(
+            ConversionError::NumCastFailed,
+        ))?;
+        let cvn = V::from(mul.numerator()).ok_or(ConversionError::NumeratorConversionError(
+            ConversionError::NumCastFailed,
+        ))?;
+        let cvd = V::from(mul.denominator()).ok_or(ConversionError::DenominatorConversionError(
+            ConversionError::NumCastFailed,
+        ))?;
         Ok(cv * cvn / cvd)
     }
 }
@@ -208,7 +212,7 @@ where
     /// let res: Result<Seconds<u8>, _> = Minutes::<u32>::new(300).try_convert();
     /// assert_eq!(
     ///     res,
-    ///     Err(ConversionError::ValueConversionError( u8::try_from(300u32).unwrap_err())),
+    ///     Err(ConversionError::ValueConversionError( ConversionError::NumCastFailed)),
     /// );
     /// ```
     pub fn try_convert<V, U2, const S2: Scale, E>(self) -> Result<Quantity<V, S2, U2>, E>
@@ -312,11 +316,15 @@ where
 #[cfg(all(test, feature = "time", feature = "length"))]
 mod tests {
     use crate::Quantity;
+    use crate::base_units::Kelvins;
     use crate::length::*;
     use crate::quantity::errors::ConversionError;
+    use crate::quantity::errors::ConversionError::NumCastFailed;
     use crate::quantity::{SiCompoundUnit, SiCompoundUnitWrapper, si};
     use crate::scale::*;
+    use crate::temperature::DegreesCelsius;
     use crate::time::*;
+    use assert_approx_eq::assert_approx_eq;
     use core::marker::PhantomData;
     use core::num::TryFromIntError;
 
@@ -487,16 +495,29 @@ mod tests {
         let sec8_res: Result<Seconds<u8>, _> = Hours::<u8>::new(1).try_convert();
         assert_eq!(
             sec8_res,
-            Err(ConversionError::NumeratorConversionError(
-                u8::try_from(300u32).unwrap_err()
-            ))
+            Err(ConversionError::NumeratorConversionError(NumCastFailed))
         );
         let sec8_res: Result<Seconds<u8>, _> = Seconds::<u32>::new(300).try_convert();
         assert_eq!(
             sec8_res,
-            Err(ConversionError::ValueConversionError(
-                u8::try_from(300u32).unwrap_err()
-            ))
+            Err(ConversionError::ValueConversionError(NumCastFailed))
         );
+        let sec8_res: Result<Quantity<u8, { Scale::new(1000, 1) }, si::Second<1>>, _> =
+            Seconds::<u8>::new(1).try_convert();
+        assert_eq!(
+            sec8_res,
+            Err(ConversionError::DenominatorConversionError(NumCastFailed))
+        );
+    }
+
+    #[cfg(all(test, feature = "temperature"))]
+    #[test]
+    fn test_celsius_conversion() {
+        type DegCelsius = Quantity<i16, { Scale::new(1, 200) }, crate::temperature::Celsius>;
+        let celsius: DegCelsius = DegCelsius::new(4800);
+        let celsius_f: Result<DegreesCelsius<f32>, _> = celsius.try_convert();
+        assert_eq!(celsius_f.unwrap().value(), 24.0);
+        let celsius_f: Result<DegreesCelsius<f32>, _> = Kelvins::<i32>::new(293).try_convert();
+        assert_approx_eq!(celsius_f.unwrap().value(), 19.85, 1e-3);
     }
 }
