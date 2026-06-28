@@ -80,6 +80,27 @@
 //!
 //! [docs.rs]: https://docs.rs/units-nostd
 //!
+//!
+#![doc(test(attr(
+    allow(incomplete_features),
+    feature(
+        generic_const_exprs,
+        const_ops,
+        const_cmp,
+        adt_const_params,
+        const_param_ty_trait,
+        min_adt_const_params,
+        const_trait_impl,
+        derive_const,
+        inherent_associated_types,
+        const_default,
+        min_generic_const_args,
+        generic_const_parameter_types,
+        unsized_const_params,
+        const_type_name,
+        specialization,
+    )
+)))]
 #![cfg_attr(feature = "area", doc = "## Area")]
 #![cfg_attr(feature = "area", doc = "```")]
 #![cfg_attr(
@@ -449,741 +470,758 @@
 #![cfg_attr(feature = "molar_entropy", doc = "```")]
 //!
 #![cfg_attr(not(test), no_std)]
+#![allow(incomplete_features, clippy::neg_multiply)]
 #![feature(generic_const_exprs)]
-#![allow(incomplete_features, unused, clippy::neg_multiply)]
 #![feature(const_ops)]
 #![feature(const_cmp)]
 #![feature(adt_const_params)]
-#![feature(const_param_ty_trait)]
 #![feature(min_adt_const_params)]
 #![feature(const_trait_impl)]
 #![feature(derive_const)]
 #![feature(inherent_associated_types)]
+#![feature(const_default)]
+#![feature(min_generic_const_args)]
+#![feature(generic_const_parameter_types)]
+#![feature(unsized_const_params)]
+#![feature(const_type_name)]
+#![feature(specialization)]
+
+extern crate alloc;
 extern crate core;
 
+mod base_unit;
+mod composite_unit;
+mod normalized_unit;
 mod prefixes;
 pub mod quantity;
 mod scale;
-
-use scale::ONE;
-
-use core::fmt::{Formatter, Pointer};
+pub mod unit;
 
 use quantity::Quantity;
-use quantity::si::SiCompoundUnitWrapper;
-pub use scale::Scale;
-
-macro_rules! pow_impl {
-    ($unit:ty, $pow:literal) => {
-        paste::paste! {
-            Quantity<T, {$unit::SCALE.pow($pow)}, crate::quantity::si::SiCompoundUnitWrapper<{$unit::UNIT.pow($pow)}>>
-        }
-    };
-}
-
-macro_rules! div_impl {
-    ($unit1:ty, $unit2:ty) => {
-        paste::paste! {
-            Quantity<T, {$unit1::SCALE / $unit2::SCALE}, crate::quantity::si::SiCompoundUnitWrapper<{$unit1::UNIT / $unit2::UNIT}>>
-        }
-    };
-}
-
-macro_rules! mul_impl {
-    ($unit1:ty, $unit2:ty) => {
-        paste::paste! {
-            Quantity<T, {$unit1::SCALE * $unit2::SCALE}, crate::quantity::si::SiCompoundUnitWrapper<{$unit1::UNIT * $unit2::UNIT}>>
-        }
-    };
-}
-
-macro_rules! scaled_impl {
-    ($unit:ty, $scale:expr) => {
-        paste::paste! {
-            Quantity<T, {<$unit>::SCALE * $scale}, crate::quantity::si::SiCompoundUnitWrapper<{<$unit>::UNIT}>>
-        }
-    };
-}
-
-macro_rules! pow {
-    ($unit:tt, $pow:literal) => {
-        pow_impl!($unit::<()>, $pow)
-    };
-}
-
-macro_rules! scale {
-    ($unit:tt, $scale:expr) => {
-        scaled_impl!($unit::<()>, $scale)
-    };
-}
-
-macro_rules! div {
-    ($a:tt, $b:tt) => {
-        div_impl!($a::<()>, $b::<()>)
-    };
-}
-
-macro_rules! mul {
-    ($a:tt, $b:tt) => {
-        mul_impl!($a::<()>, $b::<()>)
-    };
-}
+pub use scale::Rational;
 
 macro_rules! named_unit_ex {
-    ($alias:ident, $unit:ty, $symbol:expr, $prefix:expr) => {
+    ($(#[$meta:meta])* $alias:ident, $unit:ty, $symbol:expr, $prefix:expr) => {
         #[doc = concat!("Representation of ", $symbol)]
-        pub type $alias<T> = $unit;
+        $(#[$meta])*
+        pub type $alias<T = ()> = $crate::quantity::Quantity<T, $unit>;
 
-        impl<T> core::fmt::Display for $alias<T>
-        where
-            T: core::fmt::Display,
-            T: Copy,
-        {
-            fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-                if let Some(p) = f.precision() {
-                    write!(f, "{:.*}{}{}", p, self.value(), $prefix, $symbol)
-                } else {
-                    write!(f, "{}{}{}", self.value(), $prefix, $symbol)
-                }
-            }
-        }
-
-        #[cfg(test)]
         paste::paste! {
-            #[test]
-            fn [< test_ $alias:snake _display >]() {
-                assert_eq!(
-                    format!("{}", $alias::new(42_i32)),
-                    format!("42{}{}", $prefix, $symbol)
-                );
+            #[cfg(test)]
+            mod [< $alias:snake _tests >] {
+                #[test]
+                fn [< test_ $alias:snake _display >]() {
+                    assert_eq!(
+                        format!("{}", super::$alias::new(42_i32)),
+                        format!("42{}{}", $prefix, $symbol)
+                    );
+                }
             }
         }
     };
 }
 
 macro_rules! named_unit {
-    ($alias:ident, $unit:ty, $symbol:expr) => {
-        named_unit_ex!($alias, $unit, $symbol, "");
+    ($(#[$meta:meta])* $alias:ident, $unit:ty, $symbol:expr) => {
+        named_unit_ex!($(#[$meta])* $alias, $unit, $symbol, "");
     };
 }
 
 macro_rules! unit_with_prefix {
-    ($alias:ident, $pow:literal, $symbol:expr, { $( $variant:ident ),* $(,)? }) => {
+    ($alias:ident, $unit:ty, $pow:expr, $symbol:expr, { $( $variant:ident ),* $(,)? }) => {
         $(
             paste::paste! {
-                named_unit_ex!([< $variant:camel $alias:camel >], scale!($alias, $crate::prefixes::[<$variant _SCALE>].pow($pow)), $symbol, $crate::prefixes::[<$variant _SYMBOL>]);
+                named_unit_ex!([< $variant:camel $alias:camel >], $crate::unit::helpers::Scale::<$unit, const {$crate::prefixes::[<$variant _SCALE>].pow($pow)}>, $symbol, $crate::prefixes::[<$variant _SYMBOL>]);
             }
         )*
     }
 }
 
 macro_rules! scalable_unit {
-    ($alias:ident, $unit:ty, $symbol:expr, $pow:literal, { $( $variant:ident ),* $(,)? }) => {
+    ($alias:ident, $unit:ty, $pow:expr, $symbol:expr, { $( $variant:ident ),* $(,)? }) => {
         named_unit!($alias, $unit, $symbol);
-        unit_with_prefix!($alias, $pow, $symbol, {$($variant),*});
+        unit_with_prefix!($alias, $unit, $pow, $symbol, {$($variant),*});
     }
 }
 
-mod base_units {
-    use crate::quantity::si::{SiCompoundUnit, SiCompoundUnitWrapper};
-    use crate::quantity::{Quantity, QuantityInfo};
-    use crate::scale::ONE;
-
-    pub(crate) type Unitless<T> =
-        Quantity<T, ONE, SiCompoundUnitWrapper<{ SiCompoundUnit::zero() }>>;
-
-    pub(crate) type Meters<T> = Quantity<T, ONE, crate::quantity::si::Meter<1>>;
-    pub(crate) type Seconds<T> = Quantity<T, ONE, crate::quantity::si::Second<1>>;
-    pub(crate) type Grams<T> = Quantity<T, ONE, crate::quantity::si::Gram<1>>;
-    pub(crate) type Kelvins<T> = Quantity<T, ONE, crate::quantity::si::Kelvin<1>>;
-    pub(crate) type Ampere<T> = Quantity<T, ONE, crate::quantity::si::Ampere<1>>;
-    pub(crate) type Candela<T> = Quantity<T, ONE, crate::quantity::si::Candela<1>>;
-    pub(crate) type Mole<T> = Quantity<T, ONE, crate::quantity::si::Mole<1>>;
-    pub(crate) type Radians<T> = Quantity<T, ONE, crate::quantity::si::Radians<1>>;
-}
-
-named_unit!(Unitless, base_units::Unitless<T>, "");
+pub type Unitless<T> = Quantity<T, base_unit::Unitless>;
 
 #[cfg(feature = "length")]
 pub mod length {
-    use crate::base_units;
-    use crate::quantity::{Quantity, QuantityInfo};
-
-    scalable_unit!(Meters, base_units::Meters<T>, "m", 1, {KILO, DECI, CENTI, MILLI, MICRO, NANO});
+    use crate::base_unit;
+    scalable_unit!(Meters, base_unit::Meters, 1, "m", {KILO, DECI, CENTI, MILLI, MICRO, NANO});
 }
 
 #[cfg(feature = "angle")]
 pub mod angle {
-    use crate::prefixes;
-    use crate::scale::ONE;
-    use crate::{Quantity, base_units};
+    use crate::base_unit;
 
-    named_unit!(Radians, base_units::Radians<T>, "rad");
+    named_unit!(Radians, base_unit::Radians, "rad");
 }
 
 #[cfg(feature = "time")]
 pub mod time {
-    use crate::base_units;
-    use crate::prefixes;
-    use crate::quantity::{Quantity, QuantityInfo};
-    use crate::scale::{ONE, Scale};
+    use crate::base_unit;
+    use crate::scale::Rational;
+    use crate::unit::helpers::{Alias, Scale, U};
 
-    named_unit!(Seconds, base_units::Seconds<T>, "s");
-    named_unit!(Minutes, scale!(Seconds, Scale::new(60, 1)), "min");
-    named_unit!(Hours, scale!(Minutes, Scale::new(60, 1)), "h");
+    named_unit!(Seconds, base_unit::Seconds, "s");
+
+    named_unit!(
+        Minutes,
+        Alias<Scale<base_unit::Seconds, const { Rational::new(60, 1) }>, "min">,
+        "min"
+    );
+    named_unit!(
+        Hours,
+        Alias<Scale<U<Minutes::<()>>, const { Rational::new(60, 1) }>, "h">,
+        "h"
+    );
 }
 
 #[cfg(feature = "mass")]
 pub mod mass {
-    use crate::base_units;
-    use crate::prefixes;
-    use crate::quantity::{Quantity, QuantityInfo};
-    use crate::scale::ONE;
+    use crate::base_unit;
 
-    scalable_unit!(Grams, base_units::Grams<T>, "g", 1, {KILO, MILLI, MICRO});
+    scalable_unit!(Grams, base_unit::Grams, 1, "g", {KILO, MILLI, MICRO});
 }
 
 #[cfg(feature = "temperature")]
 pub mod temperature {
-    use crate::base_units;
+    use crate::Rational;
+    use crate::base_unit;
+    use crate::base_unit::{BaseUnit, unit};
     use crate::quantity::errors::ConversionError;
-    use crate::quantity::{Quantity, QuantityInfo};
-    use crate::quantity::{UnitConvert, UnitTryConvert, si};
-    use crate::scale::ONE;
-    use crate::{Scale, prefixes};
-    use core::convert::Infallible;
+    use crate::quantity::errors::ConversionError::{
+        DenominatorConversionError, NumeratorConversionError, OffsetConversionError,
+        ValueConversionError,
+    };
+    use crate::quantity::{UnitConvert, UnitTryConvert};
+    use crate::unit::helpers::U;
+    use crate::unit::{Tag, Unit, UnitTag};
     use core::ops::{Add, Div, Mul, Sub};
     use num::{NumCast, ToPrimitive};
 
-    scalable_unit!(Kelvins, base_units::Kelvins<T>, "K", 1, { MILLI });
+    scalable_unit!(Kelvins, base_unit::Kelvins, 1, "K", { MILLI });
 
-    /// Unit for degrees Celsius
-    /// ```
-    /// let res : Result<units::temperature::MilliKelvins<u64>, _> = units::temperature::DegreesCelsius::new(0).try_convert();
-    /// assert_eq!(res, Ok(units::temperature::MilliKelvins::<u64>::new(273150)));
-    /// ```
-    ///
-    /// ```
-    /// let res : Result<units::temperature::MilliKelvins<u64>, _> = units::temperature::DegreesCelsius::new(20).try_convert();
-    /// assert_eq!(res, Ok(units::temperature::MilliKelvins::<u64>::new(293150)));
-    /// ```
-    ///
-    /// ```
-    /// let res : Result<units::temperature::DegreesCelsius<u64>, _> = units::temperature::MilliKelvins::new(293150).try_convert();
-    /// assert_eq!(res, Ok(units::temperature::DegreesCelsius::<u64>::new(20)));
-    /// ```
-    ///
-    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-    pub struct Celsius;
+    unit!(Celsius, "℃");
 
     const ZERO_CELSIUS: MilliKelvins<u64> = MilliKelvins::new(273_150);
 
-    impl<T, V, const S1: Scale, const S2: Scale> UnitConvert<Celsius, T, V, S1, S2> for si::Kelvin<1>
+    impl<T, V, S1, S2> UnitConvert<T, V>
+        for (
+            UnitTag<<Celsius as Unit>::Normalized>,
+            S1,
+            UnitTag<<base_unit::Kelvins as Unit>::Normalized>,
+            S2,
+        )
     where
-        V: Sub<V, Output = V>
-            + Div<V, Output = V>
-            + Mul<V, Output = V>
-            + From<T>
-            + From<u64>
-            + Copy,
+        S1: Tag<Rational>,
+        S2: Tag<Rational>,
+        T: Copy + ToPrimitive,
+        V: Copy + NumCast + Mul<Output = V> + Div<Output = V> + Add<Output = V>,
     {
-        fn convert(value: T) -> V {
-            let vk = <si::Kelvin<1> as UnitConvert<si::Kelvin<1>, T, V, S1, S2>>::convert(value);
-            let offset: Quantity<V, S2, si::Kelvin<1>> = ZERO_CELSIUS.convert();
-            vk - offset.value()
+        fn convert(v: T) -> V {
+            let rescale = S1::VALUE / S2::VALUE;
+            let offset_scale = U::<MilliKelvins>::SYMBOL_SCALE / S2::VALUE;
+            let offset = V::from(ZERO_CELSIUS.value()).unwrap()
+                * V::from(offset_scale.numerator()).unwrap()
+                / V::from(offset_scale.denominator()).unwrap();
+            V::from(v).unwrap() * V::from(rescale.numerator()).unwrap()
+                / V::from(rescale.denominator()).unwrap()
+                + offset
         }
     }
 
-    impl<T, V, const S1: Scale, const S2: Scale, E1> UnitTryConvert<Celsius, T, V, S1, S2>
-        for si::Kelvin<1>
+    impl<T, V, S1, S2> UnitTryConvert<T, V>
+        for (
+            UnitTag<<Celsius as Unit>::Normalized>,
+            S1,
+            UnitTag<<base_unit::Kelvins as Unit>::Normalized>,
+            S2,
+        )
     where
-        V: Sub<V, Output = V> + Div<V, Output = V> + Mul<V, Output = V> + NumCast + Copy,
-        si::Kelvin<1>: UnitTryConvert<si::Kelvin<1>, T, V, S1, S2, Error = E1>,
-        E1: core::error::Error,
-    {
-        type Error = ConversionError<
-            E1,
-            Infallible,
-            Infallible,
-            ConversionError<ConversionError, ConversionError, ConversionError, Infallible>,
-        >;
-        fn try_convert(value: T) -> Result<V, Self::Error> {
-            let vk =
-                <si::Kelvin<1> as UnitTryConvert<si::Kelvin<1>, T, V, S1, S2>>::try_convert(value)
-                    .map_err(ConversionError::ValueConversionError)?;
-            let offset: Quantity<V, S2, si::Kelvin<1>> = ZERO_CELSIUS
-                .try_convert()
-                .map_err(ConversionError::OffsetConversionError)?;
-            Ok(vk - offset.value())
-        }
-    }
-
-    impl<T, V, const S1: Scale, const S2: Scale> UnitConvert<si::Kelvin<1>, T, V, S1, S2> for Celsius
-    where
-        V: Add<V, Output = V>
-            + Div<V, Output = V>
-            + Mul<V, Output = V>
-            + From<T>
-            + From<u64>
-            + Copy,
-    {
-        fn convert(value: T) -> V {
-            let vk = <si::Kelvin<1> as UnitConvert<si::Kelvin<1>, T, V, S1, S2>>::convert(value);
-            let offset: Quantity<V, S2, si::Kelvin<1>> = ZERO_CELSIUS.convert();
-            vk + offset.value()
-        }
-    }
-
-    impl<T, V, const S1: Scale, const S2: Scale, E1> UnitTryConvert<si::Kelvin<1>, T, V, S1, S2>
-        for Celsius
-    where
-        V: Add<V, Output = V> + Div<V, Output = V> + Mul<V, Output = V> + Copy + NumCast,
+        S1: Tag<Rational>,
+        S2: Tag<Rational>,
         T: ToPrimitive,
-        si::Kelvin<1>: UnitTryConvert<si::Kelvin<1>, T, V, S1, S2, Error = E1>,
-        E1: core::error::Error,
+        V: NumCast + Mul<Output = V> + Div<Output = V> + Add<Output = V>,
     {
-        type Error = ConversionError<
-            E1,
-            Infallible,
-            Infallible,
-            ConversionError<ConversionError, ConversionError, ConversionError, Infallible>,
-        >;
-        fn try_convert(value: T) -> Result<V, Self::Error> {
-            let vk =
-                <si::Kelvin<1> as UnitTryConvert<si::Kelvin<1>, T, V, S1, S2>>::try_convert(value)
-                    .map_err(ConversionError::ValueConversionError)?;
-            let offset: Quantity<V, S2, si::Kelvin<1>> = ZERO_CELSIUS
-                .try_convert()
-                .map_err(ConversionError::OffsetConversionError)?;
-            Ok(vk + offset.value())
+        type Error =
+            ConversionError<ConversionError, ConversionError, ConversionError, ConversionError>;
+        fn try_convert(v: T) -> Result<V, Self::Error> {
+            let rescale = S1::VALUE / S2::VALUE;
+
+            let offset_scale = U::<MilliKelvins>::SYMBOL_SCALE / S2::VALUE;
+            let offset = V::from(ZERO_CELSIUS.value())
+                .ok_or(OffsetConversionError(ConversionError::NumCastFailed))?
+                * V::from(offset_scale.numerator())
+                    .ok_or(OffsetConversionError(ConversionError::NumCastFailed))?
+                / V::from(offset_scale.denominator())
+                    .ok_or(OffsetConversionError(ConversionError::NumCastFailed))?;
+
+            let v_c: V = V::from(v).ok_or(ValueConversionError(ConversionError::NumCastFailed))?;
+            let n_c: V = V::from(rescale.numerator())
+                .ok_or(NumeratorConversionError(ConversionError::NumCastFailed))?;
+            let d_c: V = V::from(rescale.denominator())
+                .ok_or(DenominatorConversionError(ConversionError::NumCastFailed))?;
+            Ok(v_c * n_c / d_c + offset)
         }
     }
 
-    impl<T, V, const S1: Scale, const S2: Scale> UnitConvert<Celsius, T, V, S1, S2> for Celsius
+    impl<T, V, S1, S2> UnitConvert<T, V>
+        for (
+            UnitTag<<base_unit::Kelvins as Unit>::Normalized>,
+            S1,
+            UnitTag<<Celsius as Unit>::Normalized>,
+            S2,
+        )
     where
-        V: Add<V, Output = V>
-            + Div<V, Output = V>
-            + Mul<V, Output = V>
-            + From<T>
-            + From<u64>
-            + Copy,
-    {
-        fn convert(value: T) -> V {
-            <si::Kelvin<1> as UnitConvert<si::Kelvin<1>, T, V, S1, S2>>::convert(value)
-        }
-    }
-
-    impl<T, V, const S1: Scale, const S2: Scale, E1> UnitTryConvert<Celsius, T, V, S1, S2> for Celsius
-    where
-        V: Add<V, Output = V> + Div<V, Output = V> + Mul<V, Output = V> + NumCast + Copy,
+        S1: Tag<Rational>,
+        S2: Tag<Rational>,
         T: ToPrimitive,
-        si::Kelvin<1>: UnitTryConvert<si::Kelvin<1>, T, V, S1, S2, Error = E1>,
-        E1: core::error::Error,
+        V: NumCast + Mul<Output = V> + Div<Output = V> + Sub<Output = V>,
     {
-        type Error = <si::Kelvin<1> as UnitTryConvert<si::Kelvin<1>, T, V, S1, S2>>::Error;
-        fn try_convert(value: T) -> Result<V, Self::Error> {
-            <si::Kelvin<1> as UnitTryConvert<si::Kelvin<1>, T, V, S1, S2>>::try_convert(value)
+        fn convert(v: T) -> V {
+            let rescale = S1::VALUE / S2::VALUE;
+            let offset_scale = U::<MilliKelvins>::SYMBOL_SCALE / S2::VALUE;
+            let offset = V::from(ZERO_CELSIUS.value()).unwrap()
+                * V::from(offset_scale.numerator()).unwrap()
+                / V::from(offset_scale.denominator()).unwrap();
+            V::from(v).unwrap() * V::from(rescale.numerator()).unwrap()
+                / V::from(rescale.denominator()).unwrap()
+                - offset
         }
     }
 
-    named_unit!(DegreesCelsius, Quantity<T, ONE, Celsius>, "℃");
+    impl<T, V, S1, S2> UnitTryConvert<T, V>
+        for (
+            UnitTag<<base_unit::Kelvins as Unit>::Normalized>,
+            S1,
+            UnitTag<<Celsius as Unit>::Normalized>,
+            S2,
+        )
+    where
+        S1: Tag<Rational>,
+        S2: Tag<Rational>,
+        T: ToPrimitive,
+        V: NumCast + Mul<Output = V> + Div<Output = V> + Sub<Output = V>,
+    {
+        type Error =
+            ConversionError<ConversionError, ConversionError, ConversionError, ConversionError>;
+        fn try_convert(v: T) -> Result<V, Self::Error> {
+            let rescale = S1::VALUE / S2::VALUE;
+
+            let offset_scale = U::<MilliKelvins>::SYMBOL_SCALE / S2::VALUE;
+            let offset = V::from(ZERO_CELSIUS.value())
+                .ok_or(OffsetConversionError(ConversionError::NumCastFailed))?
+                * V::from(offset_scale.numerator())
+                    .ok_or(OffsetConversionError(ConversionError::NumCastFailed))?
+                / V::from(offset_scale.denominator())
+                    .ok_or(OffsetConversionError(ConversionError::NumCastFailed))?;
+
+            let v_c: V = V::from(v).ok_or(ValueConversionError(ConversionError::NumCastFailed))?;
+            let n_c: V = V::from(rescale.numerator())
+                .ok_or(NumeratorConversionError(ConversionError::NumCastFailed))?;
+            let d_c: V = V::from(rescale.denominator())
+                .ok_or(DenominatorConversionError(ConversionError::NumCastFailed))?;
+
+            Ok(v_c * n_c / d_c - offset)
+        }
+    }
+
+    named_unit!(
+        /// Unit for degrees Celsius.
+        ///
+        /// ```
+        /// let res : Result<units::temperature::MilliKelvins<u64>, _> = units::temperature::DegreesCelsius::new(0).try_convert();
+        /// assert_eq!(res, Ok(units::temperature::MilliKelvins::<u64>::new(273150)));
+        /// ```
+        ///
+        /// ```
+        /// let res : Result<units::temperature::MilliKelvins<u64>, _> = units::temperature::DegreesCelsius::new(20).try_convert();
+        /// assert_eq!(res, Ok(units::temperature::MilliKelvins::<u64>::new(293150)));
+        /// ```
+        ///
+        /// ```
+        /// let res : Result<units::temperature::DegreesCelsius<u64>, _> = units::temperature::MilliKelvins::new(293150).try_convert();
+        /// assert_eq!(res, Ok(units::temperature::DegreesCelsius::<u64>::new(20)));
+        /// ```
+        DegreesCelsius, Celsius, "℃");
+
+    #[cfg(test)]
+    mod tests {
+        use crate::Rational;
+        use crate::quantity::Quantity;
+        use crate::unit::helpers::Scale;
+        use assert_approx_eq::assert_approx_eq;
+
+        #[test]
+        fn test_celsius_scale() {
+            type DegCelsius =
+                Quantity<i16, Scale<crate::temperature::Celsius, const { Rational::new(1, 200) }>>;
+            let celsius: DegCelsius = DegCelsius::new(4800);
+            let celsius_f: Result<crate::temperature::DegreesCelsius<f32>, _> =
+                celsius.try_convert();
+            assert_eq!(celsius_f.unwrap().value(), 24.0);
+        }
+
+        #[test]
+        fn test_try_convert_kelvin_to_celsius() {
+            let celsius_f: Result<crate::temperature::DegreesCelsius<f32>, _> =
+                crate::temperature::Kelvins::<i32>::new(293).try_convert();
+            assert_approx_eq!(celsius_f.unwrap().value(), 19.85, 1e-3);
+        }
+        #[test]
+        fn test_convert_kelvin_to_celsius() {
+            let celsius_f: crate::temperature::DegreesCelsius<f32> =
+                crate::temperature::Kelvins::<f32>::new(293.15).convert();
+            assert_approx_eq!(celsius_f.value(), 20.0, 1e-3);
+        }
+        #[test]
+        fn test_convert_celsius_to_kelvin() {
+            let kelvins_f: crate::temperature::Kelvins<f32> =
+                crate::temperature::DegreesCelsius::<f32>::new(20.0).convert();
+            assert_approx_eq!(kelvins_f.value(), 293.15, 1e-3);
+        }
+        #[test]
+        fn test_try_convert_celsius_to_kelvin() {
+            let kelvins_f: Result<crate::temperature::Kelvins<f32>, _> =
+                crate::temperature::DegreesCelsius::<f32>::new(20.0).try_convert();
+            assert_approx_eq!(kelvins_f.unwrap().value(), 293.15, 1e-3);
+        }
+    }
 }
 
 #[cfg(feature = "electric_current")]
 pub mod electric_current {
-    use crate::prefixes;
-    use crate::scale::ONE;
-    use crate::{Quantity, base_units};
+    use crate::base_unit;
 
-    named_unit!(Amperes, base_units::Ampere<T>, "A");
+    named_unit!(Amperes, base_unit::Amperes, "A");
 }
 
 #[cfg(feature = "luminous_intensity")]
 pub mod luminous_intensity {
-    use crate::prefixes;
-    use crate::scale::ONE;
-    use crate::{Quantity, base_units};
+    use crate::base_unit;
 
-    named_unit!(Candelas, base_units::Candela<T>, "cd");
+    named_unit!(Candelas, base_unit::Candela, "cd");
 }
 
 #[cfg(feature = "amount_of_substance")]
 pub mod amount_of_substance {
-    use crate::prefixes;
-    use crate::scale::ONE;
-    use crate::{Quantity, base_units};
+    use crate::base_unit;
 
-    named_unit!(Moles, base_units::Mole<T>, "mol");
+    named_unit!(Moles, base_unit::Moles, "mol");
 }
 
 #[cfg(feature = "area")]
 pub mod area {
-    use crate::length::Meters;
-    use crate::prefixes;
-    use crate::quantity::{Quantity, QuantityInfo};
-    use crate::scale::ONE;
+    use crate::base_unit;
+    use crate::unit::helpers::Pow;
 
-    scalable_unit!(MetersSquared, pow!(Meters, 2), "m²", 2, {KILO, DECI, CENTI, MILLI});
+    scalable_unit!(MetersSquared, Pow<base_unit::Meters, 2>, 2, "m²", {KILO, DECI, CENTI, MILLI});
 }
 
 #[cfg(feature = "volume")]
 pub mod volume {
-    use crate::length::Meters;
-    use crate::prefixes;
-    use crate::quantity::{Quantity, QuantityInfo};
-    use crate::scale::ONE;
+    use crate::base_unit;
+    use crate::unit::helpers::Pow;
 
-    scalable_unit!(MetersCubic, pow!(Meters, 3), "m³", 3, {DECI, CENTI, MILLI});
+    scalable_unit!(MetersCubic, Pow<base_unit::Meters, 3>, 3, "m³", {DECI, CENTI, MILLI});
 }
 
 #[cfg(feature = "acceleration")]
 pub mod acceleration {
-    use crate::length::Meters;
-    use crate::quantity::{Quantity, QuantityInfo};
-    use crate::scale::{ONE, Scale};
-    use crate::time::Seconds;
+    use crate::base_unit;
+    use crate::unit::helpers::{Div, Pow};
 
-    type S2<T> = pow!(Seconds, 2);
-    named_unit!(MetersPerSecondPerSecond, div!(Meters, S2), "m/s²");
+    named_unit!(MetersPerSecondPerSecond, Div<base_unit::Meters, Pow<base_unit::Seconds, 2>>, "m/s²");
 }
 
 #[cfg(feature = "velocity")]
 pub mod velocity {
-    use crate::length::{KiloMeters, Meters};
-    use crate::quantity::{Quantity, QuantityInfo};
-    use crate::scale::{ONE, Scale};
-    use crate::time::{Hours, Seconds};
+    use crate::base_unit;
+    use crate::length::KiloMeters;
+    use crate::time::Hours;
+    use crate::unit::helpers::{Alias, Div, U};
 
-    named_unit!(MetersPerSecond, div!(Meters, Seconds), "㎧");
-    named_unit!(KilometersPerHour, div!(KiloMeters, Hours), "kph");
+    named_unit!(
+        MetersPerSecond,
+        Alias<Div<base_unit::Meters, base_unit::Seconds>, "㎧">,
+        "㎧"
+    );
+    named_unit!(
+        KilometersPerHour,
+        Alias<Div<U<KiloMeters::<()>>, U<Hours::<()>>>, "kph">,
+        "kph"
+    );
 }
 
 #[cfg(feature = "wave_number")]
 pub mod wave_number {
-    use crate::length::Meters;
-    use crate::quantity::{Quantity, QuantityInfo};
-    use crate::scale::{ONE, Scale};
+    use crate::base_unit;
+    use crate::unit::helpers::Pow;
 
-    named_unit!(ReciprocalMeter, pow!(Meters, -1), "m⁻¹");
+    named_unit!(ReciprocalMeter, Pow<base_unit::Meters, -1>, "m⁻¹");
 }
 
 #[cfg(feature = "mass_density")]
 pub mod mass_density {
-    use crate::length::Meters;
     use crate::mass::*;
-    use crate::quantity::{Quantity, QuantityInfo};
-    use crate::scale::{ONE, Scale};
+    use crate::unit::helpers::{Div, U};
     use crate::volume::*;
 
-    named_unit!(KilogramPerCubicMeter, div!(KiloGrams, MetersCubic), "kg/m³");
+    named_unit!(
+        KilogramPerCubicMeter,
+        Div::<U::<KiloGrams::<()>>, U::<MetersCubic::<()>>>,
+        "kg/m³"
+    );
     named_unit!(
         GramPerCubicCentieter,
-        div!(Grams, CentiMetersCubic),
+        Div<U<Grams<()>>, U<CentiMetersCubic<()>>>,
         "g/cm³"
     );
     named_unit!(
         MicrogramPerCubicMeter,
-        div!(MicroGrams, MetersCubic),
+        Div<U<MicroGrams<()>>, U<MetersCubic<()>>>,
         "μg/m³"
     );
 }
 
 #[cfg(feature = "specific_volume")]
 pub mod specific_volume {
-    use crate::length::Meters;
     use crate::mass::KiloGrams;
-    use crate::quantity::{Quantity, QuantityInfo};
-    use crate::scale::{ONE, Scale};
+    use crate::unit::helpers::{Div, U};
     use crate::volume::MetersCubic;
 
-    named_unit!(CubicMeterPerKilogram, div!(MetersCubic, KiloGrams), "m³/kg");
+    named_unit!(
+        CubicMeterPerKilogram,
+        Div<U<MetersCubic<()>>, U<KiloGrams<()>>>,
+        "m³/kg"
+    );
 }
 
 #[cfg(feature = "current_density")]
 pub mod current_density {
     use crate::area::MetersSquared;
     use crate::electric_current::Amperes;
-    use crate::quantity::{Quantity, QuantityInfo};
-    use crate::scale::{ONE, Scale};
+    use crate::unit::helpers::{Div, U};
 
-    named_unit!(AmperePerSquareMeter, div!(Amperes, MetersSquared), "A/m²");
+    named_unit!(
+        AmperePerSquareMeter,
+        Div<U<Amperes<()>>, U<MetersSquared<()>>>,
+        "A/m²"
+    );
 }
 
 #[cfg(feature = "magnetic_field_strength")]
 pub mod magnetic_field_strength {
     use crate::electric_current::Amperes;
     use crate::length::Meters;
-    use crate::quantity::{Quantity, QuantityInfo};
+    use crate::unit::helpers::{Div, U};
 
-    named_unit!(AmperePerMeter, div!(Amperes, Meters), "A/m");
+    named_unit!(AmperePerMeter, Div<U<Amperes<()>>, U<Meters<()>>>, "A/m");
 }
 
 #[cfg(feature = "amount_of_substance_concentration")]
 pub mod amount_of_substance_concentration {
     use crate::amount_of_substance::Moles;
-    use crate::quantity::{Quantity, QuantityInfo};
+    use crate::unit::helpers::{Div, U};
     use crate::volume::MetersCubic;
 
-    named_unit!(MolPerCubicMeter, div!(Moles, MetersCubic), "mol/m³");
+    named_unit!(
+        MolPerCubicMeter,
+        Div<U<Moles<()>>, U<MetersCubic<()>>>,
+        "mol/m³"
+    );
 }
 
 #[cfg(feature = "luminance")]
 pub mod luminance {
     use crate::area::MetersSquared;
     use crate::luminous_intensity::Candelas;
-    use crate::quantity::{Quantity, QuantityInfo};
+    use crate::unit::helpers::{Div, U};
 
     named_unit!(
         CandelaPerSquareMeter,
-        div!(Candelas, MetersSquared),
+        Div<U<Candelas<()>>, U<MetersSquared<()>>>,
         "cd/m²"
     );
 }
 
 #[cfg(feature = "frequency")]
 pub mod frequency {
-    use crate::quantity::{Quantity, QuantityInfo};
     use crate::time::Seconds;
+    use crate::unit::helpers::{Alias, Pow, U};
 
-    named_unit!(Hertz, pow!(Seconds, -1), "Hz");
+    named_unit!(Hertz, Alias<Pow<U<Seconds<()>>, -1>, "Hz">, "Hz");
 }
 
 #[cfg(feature = "force")]
 pub mod force {
     use crate::acceleration::MetersPerSecondPerSecond;
-    use crate::length::Meters;
     use crate::mass::KiloGrams;
-    use crate::quantity::{Quantity, QuantityInfo};
+    use crate::unit::helpers::{Alias, Mul, U};
 
-    named_unit!(Newtons, mul!(KiloGrams, MetersPerSecondPerSecond), "N");
+    named_unit!(
+        Newtons,
+        Alias<Mul<U<KiloGrams<()>>, U<MetersPerSecondPerSecond<()>>>, "N">,
+        "N"
+    );
 }
 
 #[cfg(feature = "energy")]
 pub mod energy {
     use crate::force::Newtons;
     use crate::length::Meters;
-    use crate::quantity::{Quantity, QuantityInfo};
+    use crate::unit::helpers::{Alias, Mul, U};
 
-    named_unit!(Joules, mul!(Newtons, Meters), "J");
+    named_unit!(Joules, Alias<Mul<U<Newtons<()>>, U<Meters<()>>>, "J">, "J");
 }
 
 #[cfg(feature = "electric_charge")]
 pub mod electric_charge {
     use crate::electric_current::Amperes;
-    use crate::quantity::{Quantity, QuantityInfo};
     use crate::time::Seconds;
+    use crate::unit::helpers::{Alias, Mul, U};
 
-    named_unit!(Coulombs, mul!(Amperes, Seconds), "C");
+    named_unit!(
+        Coulombs,
+        Alias<Mul<U<Amperes<()>>, U<Seconds<()>>>, "C">,
+        "C"
+    );
 }
 
 #[cfg(feature = "power")]
 pub mod power {
     use crate::energy::Joules;
-    use crate::quantity::{Quantity, QuantityInfo};
     use crate::time::Seconds;
+    use crate::unit::helpers::{Alias, Div, U};
 
-    named_unit!(Watts, div!(Joules, Seconds), "W");
+    named_unit!(Watts, Alias<Div<U<Joules<()>>, U<Seconds<()>>>, "W">, "W");
 }
 
 #[cfg(feature = "potential_difference")]
 pub mod potential_difference {
     use crate::electric_current::Amperes;
     use crate::power::Watts;
-    use crate::quantity::{Quantity, QuantityInfo};
+    use crate::unit::helpers::{Alias, Div, U};
 
-    named_unit!(Volts, div!(Watts, Amperes), "V");
+    named_unit!(Volts, Alias<Div<U<Watts<()>>, U<Amperes<()>>>, "V">, "V");
 }
 
 #[cfg(feature = "capacitance")]
 pub mod capacitance {
     use crate::electric_charge::Coulombs;
     use crate::potential_difference::Volts;
-    use crate::quantity::{Quantity, QuantityInfo};
+    use crate::unit::helpers::{Alias, Div, U};
 
-    named_unit!(Farad, div!(Coulombs, Volts), "F");
+    named_unit!(Farad, Alias<Div<U<Coulombs<()>>, U<Volts<()>>>, "F">, "F");
 }
 
 #[cfg(feature = "electrical_resistance")]
 pub mod electrical_resistance {
     use crate::electric_current::Amperes;
     use crate::potential_difference::Volts;
-    use crate::quantity::{Quantity, QuantityInfo};
+    use crate::unit::helpers::{Alias, Div, U};
 
-    named_unit!(Ohms, div!(Volts, Amperes), "Ω");
+    named_unit!(Ohms, Alias<Div<U<Volts<()>>, U<Amperes<()>>>, "Ω">, "Ω");
 }
 
 #[cfg(feature = "magnetic_flux")]
 pub mod magnetic_flux {
     use crate::potential_difference::Volts;
-    use crate::quantity::{Quantity, QuantityInfo};
     use crate::time::Seconds;
+    use crate::unit::helpers::{Alias, Mul, U};
 
-    named_unit!(Weber, mul!(Volts, Seconds), "Wb");
+    named_unit!(Weber, Alias<Mul<U<Volts<()>>, U<Seconds<()>>>, "Wb">, "Wb");
 }
 
 #[cfg(feature = "magnetic_flux_density")]
 pub mod magnetic_flux_density {
     use crate::area::MetersSquared;
     use crate::magnetic_flux::Weber;
-    use crate::quantity::{Quantity, QuantityInfo};
+    use crate::unit::helpers::{Alias, Mul, U};
 
-    named_unit!(Tesla, mul!(Weber, MetersSquared), "T");
+    named_unit!(
+        Tesla,
+        Alias<Mul<U<Weber<()>>, U<MetersSquared<()>>>, "T">,
+        "T"
+    );
 }
 
 #[cfg(feature = "inductance")]
 pub mod inductance {
     use crate::electric_current::Amperes;
     use crate::magnetic_flux::Weber;
-    use crate::quantity::{Quantity, QuantityInfo};
+    use crate::unit::helpers::{Alias, Div, U};
 
-    named_unit!(Henry, div!(Weber, Amperes), "H");
+    named_unit!(Henry, Alias<Div<U<Weber<()>>, U<Amperes<()>>>, "H">, "H");
 }
 
 #[cfg(feature = "pressure")]
 pub mod pressure {
     use crate::area::MetersSquared;
     use crate::force::Newtons;
-    use crate::quantity::{Quantity, QuantityInfo};
+    use crate::unit::helpers::{Alias, Div, U};
 
-    scalable_unit!(Pascals, div!(Newtons, MetersSquared), "Pa", 1, {MEGA,KILO,HECTO,MILLI});
+    scalable_unit!(Pascals, Alias::<Div::<U::<Newtons::<()>>, U::<MetersSquared<()>>>, "Pa">, 1, "Pa", {MEGA,KILO,HECTO,MILLI});
 }
 
 #[cfg(feature = "dynamic_viscosity")]
 pub mod dynamic_viscosity {
     use crate::pressure::Pascals;
-    use crate::quantity::{Quantity, QuantityInfo};
     use crate::time::Seconds;
+    use crate::unit::helpers::{Mul, U};
 
-    named_unit!(PascalSeconds, mul!(Pascals, Seconds), "Pa·s");
+    named_unit!(PascalSeconds, Mul<U<Pascals<()>>, U<Seconds<()>>>, "Pa·s");
 }
 
 #[cfg(feature = "surface_tension")]
 pub mod surface_tension {
     use crate::force::Newtons;
     use crate::length::Meters;
-    use crate::quantity::{Quantity, QuantityInfo};
+    use crate::unit::helpers::{Div, U};
 
-    named_unit!(NewtonsPerMeter, div!(Newtons, Meters), "N/m");
+    named_unit!(NewtonsPerMeter, Div<U<Newtons<()>>, U<Meters<()>>>, "N/m");
 }
 
 #[cfg(feature = "angular_velocity")]
 pub mod angular_velocity {
     use crate::angle::Radians;
-    use crate::quantity::{Quantity, QuantityInfo};
     use crate::time::Seconds;
+    use crate::unit::helpers::{Div, U};
 
-    named_unit!(RadiansPerSecond, div!(Radians, Seconds), "rad/s");
+    named_unit!(RadiansPerSecond, Div<U<Radians>, U<Seconds>>, "rad/s");
 }
 
 #[cfg(feature = "angular_acceleration")]
 pub mod angular_acceleration {
     use crate::angle::Radians;
-    use crate::quantity::{Quantity, QuantityInfo};
     use crate::time::Seconds;
+    use crate::unit::helpers::{Div, Pow, U};
 
-    type S2<T> = pow!(Seconds, 2);
-    named_unit!(RadiansPerSecond, div!(Radians, S2), "rad/s²");
+    named_unit!(
+        RadiansPerSecond,
+        Div<U<Radians>, Pow<U<Seconds<()>>, 2>>,
+        "rad/s²"
+    );
 }
 
 #[cfg(feature = "heat_flux_density")]
 pub mod heat_flux_density {
     use crate::length::Meters;
     use crate::power::Watts;
-    use crate::quantity::{Quantity, QuantityInfo};
+    use crate::unit::helpers::{Div, Pow, U};
 
-    type M2<T> = pow!(Meters, 2);
-    named_unit!(WattsPerSquareMeter, div!(Watts, M2), "W/m²");
+    named_unit!(
+        WattsPerSquareMeter,
+        Div<U<Watts>, Pow<U<Meters>, 2>>,
+        "W/m²"
+    );
 }
 
 #[cfg(feature = "entropy")]
 pub mod entropy {
     use crate::energy::Joules;
-    use crate::quantity::{Quantity, QuantityInfo};
     use crate::temperature::Kelvins;
+    use crate::unit::helpers::{Div, U};
 
-    named_unit!(JoulesPerKelvin, div!(Joules, Kelvins), "J/K");
+    named_unit!(JoulesPerKelvin, Div<U<Joules>, U<Kelvins>>, "J/K");
 }
 
 #[cfg(feature = "specific_heat_capacity")]
 pub mod specific_heat_capacity {
     use crate::energy::Joules;
     use crate::mass::KiloGrams;
-    use crate::quantity::{Quantity, QuantityInfo};
     use crate::temperature::Kelvins;
+    use crate::unit::helpers::{Div, Mul, U};
 
-    type KgK<T> = mul!(KiloGrams, Kelvins);
-    named_unit!(JoulesPerKilogramKelvin, div!(Joules, KgK), "J/(kg·K)");
+    named_unit!(
+        JoulesPerKilogramKelvin,
+        Div<U<Joules>, Mul<U<KiloGrams>, U<Kelvins>>>,
+        "J/(kg·K)"
+    );
 }
 
 #[cfg(feature = "specific_energy")]
 pub mod specific_energy {
     use crate::energy::Joules;
     use crate::mass::KiloGrams;
-    use crate::quantity::{Quantity, QuantityInfo};
+    use crate::unit::helpers::{Div, U};
 
-    named_unit!(JoulesPerKilogram, div!(Joules, KiloGrams), "J/kg");
+    named_unit!(JoulesPerKilogram, Div<U<Joules>, U<KiloGrams>>, "J/kg");
 }
 
 #[cfg(feature = "thermal_conductivity")]
 pub mod thermal_conductivity {
-    use crate::energy::Joules;
     use crate::length::Meters;
     use crate::power::Watts;
-    use crate::quantity::{Quantity, QuantityInfo};
     use crate::temperature::Kelvins;
+    use crate::unit::helpers::{Div, Mul, Pow, U};
 
-    type M2<T> = pow!(Meters, 2);
-    type M2K<T> = mul!(M2, Kelvins);
-    named_unit!(WattsPerSquareMeterKelvin, div!(Watts, M2K), "W/(m²·K)");
+    named_unit!(
+        WattsPerSquareMeterKelvin,
+        Div<U<Watts>, Mul<Pow<U<Meters>, 2>, U<Kelvins>>>,
+        "W/(m²·K)"
+    );
 }
 
 #[cfg(feature = "electric_field_strength")]
 pub mod electric_field_strength {
     use crate::length::Meters;
     use crate::potential_difference::Volts;
-    use crate::quantity::{Quantity, QuantityInfo};
+    use crate::unit::helpers::{Div, U};
 
-    named_unit!(VoltsPerMeter, div!(Volts, Meters), "V/m");
+    named_unit!(VoltsPerMeter, Div<U<Volts>, U<Meters>>, "V/m");
 }
 
 #[cfg(feature = "electric_charge_density")]
 pub mod electric_charge_density {
     use crate::electric_charge::Coulombs;
     use crate::length::Meters;
-    use crate::quantity::{Quantity, QuantityInfo};
+    use crate::unit::helpers::{Div, Pow, U};
 
-    type M3<T> = pow!(Meters, 3);
-    named_unit!(CoulombsPerCubicMeter, div!(Coulombs, M3), "C/m³");
+    named_unit!(
+        CoulombsPerCubicMeter,
+        Div<U<Coulombs>, Pow<U<Meters>, 3>>,
+        "C/m³"
+    );
 }
 
 #[cfg(feature = "electric_flux_density")]
 pub mod electric_flux_density {
     use crate::electric_charge::Coulombs;
     use crate::length::Meters;
-    use crate::quantity::{Quantity, QuantityInfo};
+    use crate::unit::helpers::{Div, Pow, U};
 
-    type M2<T> = pow!(Meters, 2);
-    named_unit!(CoulombsPerSquareMeter, div!(Coulombs, M2), "C/m²");
+    named_unit!(
+        CoulombsPerSquareMeter,
+        Div<U<Coulombs>, Pow<U<Meters>, 2>>,
+        "C/m²"
+    );
 }
 
 #[cfg(feature = "molar_energy")]
 pub mod molar_energy {
     use crate::amount_of_substance::Moles;
     use crate::energy::Joules;
-    use crate::quantity::{Quantity, QuantityInfo};
+    use crate::unit::helpers::{Div, U};
 
-    named_unit!(JoulesPerMole, div!(Joules, Moles), "J/mol");
+    named_unit!(JoulesPerMole, Div<U<Joules<()>>, U<Moles<()>>>, "J/mol");
 }
 
 #[cfg(feature = "molar_entropy")]
 pub mod molar_entropy {
     use crate::amount_of_substance::Moles;
     use crate::energy::Joules;
-    use crate::quantity::{Quantity, QuantityInfo};
     use crate::temperature::Kelvins;
+    use crate::unit::helpers::{Div, Mul, U};
 
-    type MK<T> = mul!(Moles, Kelvins);
-    named_unit!(JoulesPerMoleKelvin, div!(Joules, MK), "J/(mol·K)");
+    named_unit!(
+        JoulesPerMoleKelvin,
+        Div<U<Joules<()>>, Mul<U<Moles<()>>, U<Kelvins<()>>>>,
+        "J/(mol·K)"
+    );
 }
 
 #[cfg(all(
@@ -1200,24 +1238,27 @@ pub mod molar_entropy {
 mod tests {
     use super::*;
     use crate::acceleration::MetersPerSecondPerSecond;
-    use crate::area::CentiMetersSquared;
+    use crate::area::{CentiMetersSquared, MetersSquared};
     use crate::force::Newtons;
+    use crate::frequency::Hertz;
     use crate::length::{Meters, MicroMeters};
     use crate::mass::KiloGrams;
+    use crate::velocity::MetersPerSecond;
 
     #[test]
     fn it_works() {
         let m = length::Meters::new(10);
         let s = time::Seconds::new(2);
-        let m2 = m * m;
-        let mps = m / s;
+        let m2: MetersSquared<_> = (m * m).alias();
+        let mps: MetersPerSecond<_> = (m / s).alias();
         let kph = velocity::KilometersPerHour::new(15);
         assert_eq!(format!("{}", m), "10m");
         assert_eq!(format!("{}", MicroMeters::new(10)), "10μm");
         assert_eq!(format!("{}", m2), "100m²");
         assert_eq!(format!("{}", mps), "5㎧");
         assert_eq!(format!("{}", kph), "15kph");
-        assert_eq!(format!("{}", Unitless::new(4) / s), "2Hz");
+        let hz: Hertz<i32> = (Unitless::new(4) / s).alias();
+        assert_eq!(format!("{}", hz), "2Hz");
 
         let kph2: velocity::KilometersPerHour<i32> =
             velocity::MetersPerSecond::new(20).try_convert().unwrap();
@@ -1231,9 +1272,8 @@ mod tests {
 
         assert_eq!(format!("{}", cm2), "10000cm²");
 
-        assert_eq!(
-            format!("{}", KiloGrams::new(10) * MetersPerSecondPerSecond::new(10)),
-            "100N"
-        );
+        let n: Newtons<_> = (KiloGrams::new(10) * MetersPerSecondPerSecond::new(10)).alias();
+
+        assert_eq!(format!("{}", n), "100N");
     }
 }
