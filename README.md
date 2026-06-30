@@ -24,6 +24,7 @@ modules they are built from. Enable everything at once with the `full` feature.
 | electric_current    | A                         |
 | luminous_intensity  | cd                        |
 | amount_of_substance | mol                       |
+| parts_per           | %, ‰, ‱, ppm, ppb, ppt    |
 
 ### Derived units (opt-in)
 

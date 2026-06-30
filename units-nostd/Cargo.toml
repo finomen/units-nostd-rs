@@ -29,6 +29,7 @@ default = [
     "electric_current",
     "luminous_intensity",
     "amount_of_substance",
+    "parts_per",
 ]
 
 serde = ["dep:serde"]
@@ -93,6 +94,7 @@ temperature = []
 electric_current = []
 luminous_intensity = []
 amount_of_substance = []
+parts_per = []
 
 # Derived units. Each lists the modules it is constructed from; Cargo resolves
 # these transitively, so enabling a derived unit pulls in everything it needs.
