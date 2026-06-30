@@ -13,8 +13,8 @@ use crate::composite_unit::{UnitDiv, UnitMul};
 use crate::quantity::errors::ConversionError::{
     DenominatorConversionError, NumeratorConversionError, ValueConversionError,
 };
-use crate::unit::{Tag, Unit, UnitTagMarker, UnitTags};
 use crate::unit::helpers::Scale;
+use crate::unit::{Tag, Unit, UnitTagMarker, UnitTags};
 
 pub trait UnitConvert<T, V> {
     fn convert(v: T) -> V;
@@ -89,7 +89,9 @@ where
     T: Debug,
 {
     fn fmt(&self, f: &mut Formatter<'_>) -> core::fmt::Result {
-        f.debug_struct("Quantity").field("value", &self.value).finish()
+        f.debug_struct("Quantity")
+            .field("value", &self.value)
+            .finish()
     }
 }
 

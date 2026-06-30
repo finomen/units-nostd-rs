@@ -95,6 +95,6 @@ mod tests {
 
     #[test]
     fn test_unitless() {
-        assert_eq!(format!("{}", Unitless::default()), "");
+        assert_eq!(format!("{}", Unitless), "");
     }
 }
