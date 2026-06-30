@@ -87,7 +87,6 @@ modules they are built from. Enable everything at once with the `full` feature.
 - [derive_const](https://doc.rust-lang.org/beta/unstable-book/library-features/derive-const.html) Tracking issue [#118304](https://github.com/rust-lang/rust/issues/118304)
 - [inherent_associated_types](https://doc.rust-lang.org/beta/unstable-book/language-features/inherent-associated-types.html) Tracking issue [#8995](https://github.com/rust-lang/rust/issues/8995)
 - [const_default](https://doc.rust-lang.org/beta/unstable-book/library-features/const-default.html) Tracking issue [#143894](https://github.com/rust-lang/rust/issues/143894)
-- [min_generic_const_args](https://doc.rust-lang.org/beta/unstable-book/language-features/min-generic-const-args.html) Tracking issue [#132980](https://github.com/rust-lang/rust/issues/132980)
 - [generic_const_parameter_types](https://doc.rust-lang.org/beta/unstable-book/language-features/generic-const-parameter-types.html) Tracking issue [#137626](https://github.com/rust-lang/rust/issues/137626)
 - [unsized_const_params](https://doc.rust-lang.org/beta/unstable-book/language-features/unsized-const-params.html) Tracking issue [#95174](https://github.com/rust-lang/rust/issues/95174)
 - [const_type_name](https://doc.rust-lang.org/beta/unstable-book/library-features/const-type-name.html) Tracking issue [#63084](https://github.com/rust-lang/rust/issues/63084)

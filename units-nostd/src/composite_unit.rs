@@ -1,9 +1,10 @@
 use crate::base_unit::Unitless;
 use crate::normalized_unit::{NormalizedUnitMerge, NormalizedUnitPow};
 use crate::scale::Rational;
-use crate::unit::{NamedUnit, Unit};
+use crate::unit::{NamedUnit, Symbol, Unit};
 use core::fmt::{Display, Formatter};
 use core::marker::PhantomData;
+use typenum::{Integer, N1};
 
 trait DisplayOps {
     const PARENTHESES_FOR_MUL: bool;
@@ -26,7 +27,7 @@ impl<A, B> DisplayOps for UnitDiv<A, B> {
     const PARENTHESES_FOR_DIV: bool = true;
     const PARENTHESES_FOR_POW: bool = true;
 }
-impl<A, const POW: i32> DisplayOps for UnitPow<A, POW> {
+impl<A, Pow: Integer> DisplayOps for UnitPow<A, Pow> {
     const PARENTHESES_FOR_MUL: bool = false;
     const PARENTHESES_FOR_DIV: bool = false;
     const PARENTHESES_FOR_POW: bool = true;
@@ -74,11 +75,11 @@ where
 }
 
 #[derive(Debug, Clone, Copy)]
-pub struct UnitPow<A, const POW: i32> {
-    _p: PhantomData<A>,
+pub struct UnitPow<A, Pow: Integer> {
+    _p: PhantomData<(A, Pow)>,
 }
 
-const impl<A, const POW: i32> Default for UnitPow<A, POW>
+const impl<A, Pow: Integer> Default for UnitPow<A, Pow>
 where
     A: [const] Default,
 {
@@ -130,7 +131,7 @@ const impl<A, B, NA, NB, NBN> Unit for UnitDiv<A, B>
 where
     A: [const] Unit<Normalized = NA> + Copy + DisplayOps,
     B: [const] Unit<Normalized = NB> + Copy + DisplayOps,
-    NB: NormalizedUnitPow<-1, Result = NBN>,
+    NB: NormalizedUnitPow<N1, Result = NBN>,
     NA: NormalizedUnitMerge<NBN>,
 {
     type Normalized = <NA as NormalizedUnitMerge<NBN>>::Result;
@@ -152,16 +153,16 @@ where
     }
 }
 
-const impl<A, const POW: i32, NA> Unit for UnitPow<A, POW>
+const impl<A, Pow: Integer, NA> Unit for UnitPow<A, Pow>
 where
     A: [const] Unit<Normalized = NA> + Copy + DisplayOps,
-    NA: NormalizedUnitPow<POW>,
+    NA: NormalizedUnitPow<Pow>,
 {
-    type Normalized = <NA as NormalizedUnitPow<POW>>::Result;
-    const SYMBOL_SCALE: Rational = A::SYMBOL_SCALE.pow(POW);
+    type Normalized = <NA as NormalizedUnitPow<Pow>>::Result;
+    const SYMBOL_SCALE: Rational = A::SYMBOL_SCALE; //FIXME: .pow({Pow::to_i32()});
 }
 
-impl<A, const POW: i32> Display for UnitPow<A, POW>
+impl<A, Pow: Integer> Display for UnitPow<A, Pow>
 where
     A: Unit + Copy + DisplayOps,
 {
@@ -193,7 +194,7 @@ where
             unsafe { core::str::from_utf8_unchecked(&buf[pos..]) }
         }
         let mut buf: [u8; 48] = [0; 48];
-        let pstr = pow_str(POW, &mut buf);
+        let pstr = pow_str(Pow::to_i32(), &mut buf);
 
         if A::PARENTHESES_FOR_POW {
             write!(f, "({}){}", A::default(), pstr)
@@ -235,39 +236,40 @@ where
     }
 }
 
-impl<A, const P: i32, const S: Rational> Display for UnitScale<UnitPow<A, P>, S>
+impl<A, P: Integer, const S: Rational> Display for UnitScale<UnitPow<A, P>, S>
 where
     A: Unit + Copy + NamedUnit,
     UnitPow<A, P>: Unit,
-    crate::prefixes::Scaled<const { S.nth_root(P) }>: crate::prefixes::NamedScale,
+    crate::prefixes::Scaled<{ S.nth_root(<P as Integer>::I32) }>: crate::prefixes::NamedScale,
 {
     default fn fmt(&self, f: &mut Formatter<'_>) -> core::fmt::Result {
-        write!(f, "{}{}", <crate::prefixes::Scaled::<const {S.nth_root(P)}> as crate::prefixes::NamedScale>::PREFIX, UnitPow::<A, P>::default())
+        write!(f, "{}{}", <crate::prefixes::Scaled::< {S.nth_root(<P as Integer>::I32)}> as crate::prefixes::NamedScale>::PREFIX, UnitPow::<A, P>::default())
     }
 }
 
 #[derive(Debug, Clone, Copy)]
-pub struct UnitAlias<A, const SYMBOL: &'static str> {
-    _p: PhantomData<A>,
+pub struct UnitAlias<A, S: Symbol> {
+    _p: PhantomData<(A, S)>,
 }
 
-impl<A, const SYMBOL: &'static str> NamedUnit for UnitAlias<A, SYMBOL> {}
+impl<A, S: Symbol> NamedUnit for UnitAlias<A, S> {}
 
-const impl<A, const SYMBOL: &'static str> Unit for UnitAlias<A, SYMBOL>
+const impl<A, S: Symbol> Unit for UnitAlias<A, S>
 where
     A: [const] Unit + Copy,
+    S: Copy,
 {
     type Normalized = A::Normalized;
     const SYMBOL_SCALE: Rational = A::SYMBOL_SCALE;
 }
 
-impl<A, const SYMBOL: &'static str> Display for UnitAlias<A, SYMBOL> {
+impl<A, S: Symbol> Display for UnitAlias<A, S> {
     fn fmt(&self, f: &mut Formatter<'_>) -> core::fmt::Result {
-        f.write_str(SYMBOL)
+        f.write_str(S::SYMBOL)
     }
 }
 
-const impl<A, const SYMBOL: &'static str> Default for UnitAlias<A, SYMBOL>
+const impl<A, S: Symbol> Default for UnitAlias<A, S>
 where
     A: [const] Unit + Copy + [const] Default,
 {
@@ -280,8 +282,10 @@ where
 mod tests {
     use crate::Rational;
     use crate::base_unit::*;
+    use crate::unit::Symbol;
     use crate::unit::helpers::{Alias, Div, Mul, Pow, Scale};
     use alloc::format;
+    use typenum::{N1, N15, P2};
 
     #[test]
     fn test_mul() {
@@ -328,46 +332,49 @@ mod tests {
     }
     #[test]
     fn test_pow() {
-        assert_eq!(format!("{}", Pow::<Seconds, -1>::default()), "s⁻¹");
-        assert_eq!(format!("{}", Pow::<Seconds, -15>::default()), "s⁻¹⁵");
+        assert_eq!(format!("{}", Pow::<Seconds, N1>::default()), "s⁻¹");
+        assert_eq!(format!("{}", Pow::<Seconds, N15>::default()), "s⁻¹⁵");
         assert_eq!(
             format!(
                 "{}",
-                Pow::<Scale::<Meters, const { Rational::new(1000, 1) }>, 2>::default()
+                Pow::<Scale::<Meters, { Rational::new(1000, 1) }>, P2>::default()
             ),
             "km²"
         );
         assert_eq!(
-            format!("{}", Pow::<Div::<Meters, Seconds>, 2>::default()),
+            format!("{}", Pow::<Div::<Meters, Seconds>, P2>::default()),
             "(m/s)²"
         );
     }
     #[test]
     fn test_scale() {
         assert_eq!(
-            format!(
-                "{}",
-                Scale::<Meters, const { Rational::new(1000, 1) }>::default()
-            ),
+            format!("{}", Scale::<Meters, { Rational::new(1000, 1) }>::default()),
             "km"
         );
         assert_eq!(
-            format!(
-                "{}",
-                Scale::<Meters, const { Rational::new(70, 3) }>::default()
-            ),
+            format!("{}", Scale::<Meters, { Rational::new(70, 3) }>::default()),
             "[70/3](m)"
         );
         assert_eq!(
             format!(
                 "{}",
-                Scale::<Pow::<Meters, 2>, const { Rational::new(1000000, 1) }>::default()
+                Scale::<Pow::<Meters, P2>, { Rational::new(1000000, 1) }>::default()
             ),
             "km²"
         );
     }
+
+    #[derive(Clone, Copy, Default, PartialEq, Eq, Debug)]
+    struct DummySymbol {}
+    impl Symbol for DummySymbol {
+        const SYMBOL: &'static str = "dummy";
+    }
     #[test]
     fn test_alias() {
-        assert_eq!(format!("{}", Alias::<Meters, "dummy">::default()), "dummy");
+        assert_eq!(
+            format!("{}", Alias::<Meters, DummySymbol>::default()),
+            "dummy"
+        );
     }
 }

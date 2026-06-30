@@ -94,7 +94,6 @@
         derive_const,
         inherent_associated_types,
         const_default,
-        min_generic_const_args,
         generic_const_parameter_types,
         unsized_const_params,
         const_type_name,
@@ -512,10 +511,7 @@
 #![feature(derive_const)]
 #![feature(inherent_associated_types)]
 #![feature(const_default)]
-#![feature(min_generic_const_args)]
 #![feature(generic_const_parameter_types)]
-#![feature(unsized_const_params)]
-#![feature(const_type_name)]
 #![feature(specialization)]
 
 extern crate alloc;
@@ -555,7 +551,23 @@ macro_rules! named_unit_ex {
 
 macro_rules! named_unit {
     ($(#[$meta:meta])* $alias:ident, $unit:ty, $symbol:expr) => {
-        named_unit_ex!($(#[$meta])* $alias, $unit, $symbol, "");
+        paste::paste! {
+            #[derive(Clone, Copy, Default, PartialEq, Eq, Debug)]
+            #[doc(hidden)]
+            pub struct [<$alias:camel Symbol>] {}
+            impl $crate::unit::Symbol for [<$alias:camel Symbol>] {
+                const SYMBOL : &'static str = $symbol;
+            }
+            named_unit_ex!($(#[$meta])* $alias, crate::unit::helpers::Alias::<$unit, [<$alias:camel Symbol>]>, $symbol, "");
+        }
+    };
+}
+
+macro_rules! unnamed_unit {
+    ($(#[$meta:meta])* $alias:ident, $unit:ty, $symbol:expr) => {
+        paste::paste! {
+            named_unit_ex!($(#[$meta])* $alias, $unit, $symbol, "");
+        }
     };
 }
 
@@ -563,7 +575,7 @@ macro_rules! unit_with_prefix {
     ($alias:ident, $unit:ty, $pow:expr, $symbol:expr, { $( $variant:ident ),* $(,)? }) => {
         $(
             paste::paste! {
-                named_unit_ex!([< $variant:camel $alias:camel >], $crate::unit::helpers::Scale::<$unit, const {$crate::prefixes::[<$variant _SCALE>].pow($pow)}>, $symbol, $crate::prefixes::[<$variant _SYMBOL>]);
+                named_unit_ex!([< $variant:camel $alias:camel >], $crate::unit::helpers::Scale::<$unit, {$crate::prefixes::[<$variant _SCALE>].pow($pow)}>, $symbol, $crate::prefixes::[<$variant _SYMBOL>]);
             }
         )*
     }
@@ -571,8 +583,15 @@ macro_rules! unit_with_prefix {
 
 macro_rules! scalable_unit {
     ($alias:ident, $unit:ty, $pow:expr, $symbol:expr, { $( $variant:ident ),* $(,)? }) => {
-        named_unit!($alias, $unit, $symbol);
+        unnamed_unit!($alias, $unit, $symbol);
         unit_with_prefix!($alias, $unit, $pow, $symbol, {$($variant),*});
+    }
+}
+
+macro_rules! named_scalable_unit {
+    ($alias:ident, $unit:ty, $pow:expr, $symbol:expr, { $( $variant:ident ),* $(,)? }) => {
+        named_unit!($alias, $unit, $symbol);
+        unit_with_prefix!($alias, $crate::unit::helpers::U::<$alias::<()>>, $pow, $symbol, {$($variant),*});
     }
 }
 
@@ -587,7 +606,6 @@ pub mod length {
 #[cfg(feature = "angle")]
 pub mod angle {
     use crate::base_unit;
-
     named_unit!(Radians, base_unit::Radians, "rad");
 }
 
@@ -595,18 +613,18 @@ pub mod angle {
 pub mod time {
     use crate::base_unit;
     use crate::scale::Rational;
-    use crate::unit::helpers::{Alias, Scale, U};
+    use crate::unit::helpers::{Scale, U};
 
-    named_unit!(Seconds, base_unit::Seconds, "s");
+    unnamed_unit!(Seconds, base_unit::Seconds, "s");
 
     named_unit!(
         Minutes,
-        Alias<Scale<base_unit::Seconds, const { Rational::new(60, 1) }>, "min">,
+        Scale<base_unit::Seconds,  { Rational::new(60, 1) }>,
         "min"
     );
     named_unit!(
         Hours,
-        Alias<Scale<U<Minutes::<()>>, const { Rational::new(60, 1) }>, "h">,
+        Scale<U<Minutes::<()>>, { Rational::new(60, 1) }>,
         "h"
     );
 }
@@ -622,7 +640,6 @@ pub mod mass {
 pub mod temperature {
     use crate::Rational;
     use crate::base_unit;
-    use crate::base_unit::{BaseUnit, unit};
     use crate::quantity::errors::ConversionError;
     use crate::quantity::errors::ConversionError::{
         DenominatorConversionError, NumeratorConversionError, OffsetConversionError,
@@ -636,13 +653,11 @@ pub mod temperature {
 
     scalable_unit!(Kelvins, base_unit::Kelvins, 1, "K", { MILLI });
 
-    unit!(Celsius, "℃");
-
     const ZERO_CELSIUS: MilliKelvins<u64> = MilliKelvins::new(273_150);
 
     impl<T, V, S1, S2> UnitConvert<T, V>
         for (
-            UnitTag<<Celsius as Unit>::Normalized>,
+            UnitTag<<base_unit::Celsius as Unit>::Normalized>,
             S1,
             UnitTag<<base_unit::Kelvins as Unit>::Normalized>,
             S2,
@@ -667,7 +682,7 @@ pub mod temperature {
 
     impl<T, V, S1, S2> UnitTryConvert<T, V>
         for (
-            UnitTag<<Celsius as Unit>::Normalized>,
+            UnitTag<<base_unit::Celsius as Unit>::Normalized>,
             S1,
             UnitTag<<base_unit::Kelvins as Unit>::Normalized>,
             S2,
@@ -704,7 +719,7 @@ pub mod temperature {
         for (
             UnitTag<<base_unit::Kelvins as Unit>::Normalized>,
             S1,
-            UnitTag<<Celsius as Unit>::Normalized>,
+            UnitTag<<base_unit::Celsius as Unit>::Normalized>,
             S2,
         )
     where
@@ -729,7 +744,7 @@ pub mod temperature {
         for (
             UnitTag<<base_unit::Kelvins as Unit>::Normalized>,
             S1,
-            UnitTag<<Celsius as Unit>::Normalized>,
+            UnitTag<<base_unit::Celsius as Unit>::Normalized>,
             S2,
         )
     where
@@ -778,7 +793,7 @@ pub mod temperature {
         /// let res : Result<units::temperature::DegreesCelsius<u64>, _> = units::temperature::MilliKelvins::new(293150).try_convert();
         /// assert_eq!(res, Ok(units::temperature::DegreesCelsius::<u64>::new(20)));
         /// ```
-        DegreesCelsius, Celsius, "℃");
+        DegreesCelsius, base_unit::Celsius, "℃");
 
     #[cfg(test)]
     mod tests {
@@ -790,7 +805,7 @@ pub mod temperature {
         #[test]
         fn test_celsius_scale() {
             type DegCelsius =
-                Quantity<i16, Scale<crate::temperature::Celsius, const { Rational::new(1, 200) }>>;
+                Quantity<i16, Scale<crate::base_unit::Celsius, { Rational::new(1, 200) }>>;
             let celsius: DegCelsius = DegCelsius::new(4800);
             let celsius_f: Result<crate::temperature::DegreesCelsius<f32>, _> =
                 celsius.try_convert();
@@ -849,24 +864,27 @@ pub mod amount_of_substance {
 pub mod area {
     use crate::base_unit;
     use crate::unit::helpers::Pow;
+    use typenum::P2;
 
-    scalable_unit!(MetersSquared, Pow<base_unit::Meters, 2>, 2, "m²", {KILO, DECI, CENTI, MILLI});
+    scalable_unit!(MetersSquared, Pow<base_unit::Meters, P2>, 2, "m²", {KILO, DECI, CENTI, MILLI});
 }
 
 #[cfg(feature = "volume")]
 pub mod volume {
     use crate::base_unit;
     use crate::unit::helpers::Pow;
+    use typenum::P3;
 
-    scalable_unit!(MetersCubic, Pow<base_unit::Meters, 3>, 3, "m³", {DECI, CENTI, MILLI});
+    scalable_unit!(MetersCubic, Pow<base_unit::Meters, P3>, 3, "m³", {DECI, CENTI, MILLI});
 }
 
 #[cfg(feature = "acceleration")]
 pub mod acceleration {
     use crate::base_unit;
     use crate::unit::helpers::{Div, Pow};
+    use typenum::P2;
 
-    named_unit!(MetersPerSecondPerSecond, Div<base_unit::Meters, Pow<base_unit::Seconds, 2>>, "m/s²");
+    named_unit!(MetersPerSecondPerSecond, Div<base_unit::Meters, Pow<base_unit::Seconds, P2>>, "m/s²");
 }
 
 #[cfg(feature = "velocity")]
@@ -874,16 +892,16 @@ pub mod velocity {
     use crate::base_unit;
     use crate::length::KiloMeters;
     use crate::time::Hours;
-    use crate::unit::helpers::{Alias, Div, U};
+    use crate::unit::helpers::{Div, U};
 
     named_unit!(
         MetersPerSecond,
-        Alias<Div<base_unit::Meters, base_unit::Seconds>, "㎧">,
+        Div<base_unit::Meters, base_unit::Seconds>,
         "㎧"
     );
     named_unit!(
         KilometersPerHour,
-        Alias<Div<U<KiloMeters::<()>>, U<Hours::<()>>>, "kph">,
+        Div<U<KiloMeters::<()>>, U<Hours::<()>>>,
         "kph"
     );
 }
@@ -892,8 +910,9 @@ pub mod velocity {
 pub mod wave_number {
     use crate::base_unit;
     use crate::unit::helpers::Pow;
+    use typenum::N1;
 
-    named_unit!(ReciprocalMeter, Pow<base_unit::Meters, -1>, "m⁻¹");
+    named_unit!(ReciprocalMeter, Pow<base_unit::Meters, N1>, "m⁻¹");
 }
 
 #[cfg(feature = "mass_density")]
@@ -983,20 +1002,21 @@ pub mod luminance {
 #[cfg(feature = "frequency")]
 pub mod frequency {
     use crate::time::Seconds;
-    use crate::unit::helpers::{Alias, Pow, U};
+    use crate::unit::helpers::{Pow, U};
+    use typenum::N1;
 
-    named_unit!(Hertz, Alias<Pow<U<Seconds<()>>, -1>, "Hz">, "Hz");
+    named_unit!(Hertz, Pow<U<Seconds<()>>, N1>, "Hz");
 }
 
 #[cfg(feature = "force")]
 pub mod force {
     use crate::acceleration::MetersPerSecondPerSecond;
     use crate::mass::KiloGrams;
-    use crate::unit::helpers::{Alias, Mul, U};
+    use crate::unit::helpers::{Mul, U};
 
     named_unit!(
         Newtons,
-        Alias<Mul<U<KiloGrams<()>>, U<MetersPerSecondPerSecond<()>>>, "N">,
+        Mul<U<KiloGrams<()>>, U<MetersPerSecondPerSecond<()>>>,
         "N"
     );
 }
@@ -1005,98 +1025,90 @@ pub mod force {
 pub mod energy {
     use crate::force::Newtons;
     use crate::length::Meters;
-    use crate::unit::helpers::{Alias, Mul, U};
+    use crate::unit::helpers::{Mul, U};
 
-    named_unit!(Joules, Alias<Mul<U<Newtons<()>>, U<Meters<()>>>, "J">, "J");
+    named_unit!(Joules, Mul<U<Newtons<()>>, U<Meters<()>>>, "J");
 }
 
 #[cfg(feature = "electric_charge")]
 pub mod electric_charge {
     use crate::electric_current::Amperes;
     use crate::time::Seconds;
-    use crate::unit::helpers::{Alias, Mul, U};
+    use crate::unit::helpers::{Mul, U};
 
-    named_unit!(
-        Coulombs,
-        Alias<Mul<U<Amperes<()>>, U<Seconds<()>>>, "C">,
-        "C"
-    );
+    named_unit!(Coulombs, Mul<U<Amperes<()>>, U<Seconds<()>>>, "C");
 }
 
 #[cfg(feature = "power")]
 pub mod power {
     use crate::energy::Joules;
     use crate::time::Seconds;
-    use crate::unit::helpers::{Alias, Div, U};
+    use crate::unit::helpers::{Div, U};
 
-    named_unit!(Watts, Alias<Div<U<Joules<()>>, U<Seconds<()>>>, "W">, "W");
+    named_unit!(Watts, Div<U<Joules<()>>, U<Seconds<()>>>, "W");
 }
 
 #[cfg(feature = "potential_difference")]
 pub mod potential_difference {
     use crate::electric_current::Amperes;
     use crate::power::Watts;
-    use crate::unit::helpers::{Alias, Div, U};
+    use crate::unit::helpers::{Div, U};
 
-    named_unit!(Volts, Alias<Div<U<Watts<()>>, U<Amperes<()>>>, "V">, "V");
+    named_unit!(Volts, Div<U<Watts<()>>, U<Amperes<()>>>, "V");
 }
 
 #[cfg(feature = "capacitance")]
 pub mod capacitance {
     use crate::electric_charge::Coulombs;
     use crate::potential_difference::Volts;
-    use crate::unit::helpers::{Alias, Div, U};
+    use crate::unit::helpers::{Div, U};
 
-    named_unit!(Farad, Alias<Div<U<Coulombs<()>>, U<Volts<()>>>, "F">, "F");
+    named_unit!(Farad, Div<U<Coulombs<()>>, U<Volts<()>>>, "F");
 }
 
 #[cfg(feature = "electrical_resistance")]
 pub mod electrical_resistance {
     use crate::electric_current::Amperes;
     use crate::potential_difference::Volts;
-    use crate::unit::helpers::{Alias, Div, U};
+    use crate::unit::helpers::{Div, U};
 
-    named_unit!(Ohms, Alias<Div<U<Volts<()>>, U<Amperes<()>>>, "Ω">, "Ω");
+    named_unit!(Ohms, Div<U<Volts<()>>, U<Amperes<()>>>, "Ω");
 }
 
 #[cfg(feature = "magnetic_flux")]
 pub mod magnetic_flux {
     use crate::potential_difference::Volts;
     use crate::time::Seconds;
-    use crate::unit::helpers::{Alias, Mul, U};
+    use crate::unit::helpers::{Mul, U};
 
-    named_unit!(Weber, Alias<Mul<U<Volts<()>>, U<Seconds<()>>>, "Wb">, "Wb");
+    named_unit!(Weber, Mul<U<Volts<()>>, U<Seconds<()>>>, "Wb");
 }
 
 #[cfg(feature = "magnetic_flux_density")]
 pub mod magnetic_flux_density {
     use crate::area::MetersSquared;
     use crate::magnetic_flux::Weber;
-    use crate::unit::helpers::{Alias, Mul, U};
+    use crate::unit::helpers::{Mul, U};
 
-    named_unit!(
-        Tesla,
-        Alias<Mul<U<Weber<()>>, U<MetersSquared<()>>>, "T">,
-        "T"
-    );
+    named_unit!(Tesla, Mul<U<Weber<()>>, U<MetersSquared<()>>>, "T");
 }
 
 #[cfg(feature = "inductance")]
 pub mod inductance {
     use crate::electric_current::Amperes;
     use crate::magnetic_flux::Weber;
-    use crate::unit::helpers::{Alias, Div, U};
+    use crate::unit::helpers::{Div, U};
 
-    named_unit!(Henry, Alias<Div<U<Weber<()>>, U<Amperes<()>>>, "H">, "H");
+    named_unit!(Henry, Div<U<Weber<()>>, U<Amperes<()>>>, "H");
 }
 
 #[cfg(feature = "pressure")]
 pub mod pressure {
     use crate::area::MetersSquared;
     use crate::force::Newtons;
-    use crate::unit::helpers::{Alias, Div, U};
+    use crate::unit::helpers::{Div, U};
 
-    scalable_unit!(Pascals, Alias::<Div::<U::<Newtons::<()>>, U::<MetersSquared<()>>>, "Pa">, 1, "Pa", {MEGA,KILO,HECTO,MILLI});
+    named_scalable_unit!(Pascals, Div::<U::<Newtons::<()>>, U::<MetersSquared<()>>>,  1, "Pa", {MEGA,KILO,HECTO,MILLI});
 }
 
 #[cfg(feature = "dynamic_viscosity")]
@@ -1131,10 +1143,11 @@ pub mod angular_acceleration {
     use crate::angle::Radians;
     use crate::time::Seconds;
     use crate::unit::helpers::{Div, Pow, U};
+    use typenum::P2;
 
     named_unit!(
         RadiansPerSecond,
-        Div<U<Radians>, Pow<U<Seconds<()>>, 2>>,
+        Div<U<Radians>, Pow<U<Seconds<()>>, P2>>,
         "rad/s²"
     );
 }
@@ -1144,10 +1157,11 @@ pub mod heat_flux_density {
     use crate::length::Meters;
     use crate::power::Watts;
     use crate::unit::helpers::{Div, Pow, U};
+    use typenum::P2;
 
     named_unit!(
         WattsPerSquareMeter,
-        Div<U<Watts>, Pow<U<Meters>, 2>>,
+        Div<U<Watts>, Pow<U<Meters>, P2>>,
         "W/m²"
     );
 }
@@ -1190,10 +1204,11 @@ pub mod thermal_conductivity {
     use crate::power::Watts;
     use crate::temperature::Kelvins;
     use crate::unit::helpers::{Div, Mul, Pow, U};
+    use typenum::P2;
 
     named_unit!(
         WattsPerSquareMeterKelvin,
-        Div<U<Watts>, Mul<Pow<U<Meters>, 2>, U<Kelvins>>>,
+        Div<U<Watts>, Mul<Pow<U<Meters>, P2>, U<Kelvins>>>,
         "W/(m²·K)"
     );
 }
@@ -1212,10 +1227,11 @@ pub mod electric_charge_density {
     use crate::electric_charge::Coulombs;
     use crate::length::Meters;
     use crate::unit::helpers::{Div, Pow, U};
+    use typenum::P3;
 
     named_unit!(
         CoulombsPerCubicMeter,
-        Div<U<Coulombs>, Pow<U<Meters>, 3>>,
+        Div<U<Coulombs>, Pow<U<Meters>, P3>>,
         "C/m³"
     );
 }
@@ -1225,10 +1241,11 @@ pub mod electric_flux_density {
     use crate::electric_charge::Coulombs;
     use crate::length::Meters;
     use crate::unit::helpers::{Div, Pow, U};
+    use typenum::P2;
 
     named_unit!(
         CoulombsPerSquareMeter,
-        Div<U<Coulombs>, Pow<U<Meters>, 2>>,
+        Div<U<Coulombs>, Pow<U<Meters>, P2>>,
         "C/m²"
     );
 }
@@ -1260,41 +1277,41 @@ pub mod molar_entropy {
 pub mod parts_per {
     use crate::base_unit;
     use crate::scale::Rational;
-    use crate::unit::helpers::{Alias, Scale};
+    use crate::unit::helpers::Scale;
 
     named_unit!(
         Percent,
-        Alias::<Scale::<base_unit::Unitless, const { Rational::new(1, 100) }>, "%">,
+        Scale::<base_unit::Unitless, { Rational::new(1, 100) }>,
         "%"
     );
     named_unit!(
         PerMillie,
-        Alias::<Scale::<base_unit::Unitless, const { Rational::new(1, 1000) }>, "‰">,
+        Scale::<base_unit::Unitless, { Rational::new(1, 1000) }>,
         "‰"
     );
     named_unit!(
         PerMiriad,
-        Alias::<Scale::<base_unit::Unitless, const { Rational::new(1, 10000) }>, "‱">,
+        Scale::<base_unit::Unitless, { Rational::new(1, 10000) }>,
         "‱"
     );
     named_unit!(
         PerCentiMillie,
-        Alias::<Scale::<base_unit::Unitless, const { Rational::new(1, 100000) }>, "pcm">,
+        Scale::<base_unit::Unitless, { Rational::new(1, 100000) }>,
         "pcm"
     );
     named_unit!(
         PerMillion,
-        Alias::<Scale::<base_unit::Unitless, const { Rational::new(1, 1000000) }>, "ppm">,
+        Scale::<base_unit::Unitless, { Rational::new(1, 1000000) }>,
         "ppm"
     );
     named_unit!(
         PerBillion,
-        Alias::<Scale::<base_unit::Unitless, const { Rational::new(1, 1000000000) }>, "ppb">,
+        Scale::<base_unit::Unitless, { Rational::new(1, 1000000000) }>,
         "ppb"
     );
     named_unit!(
         PerTrillion,
-        Alias::<Scale::<base_unit::Unitless, const { Rational::new(1, 1000000000000) }>, "ppt">,
+        Scale::<base_unit::Unitless, { Rational::new(1, 1000000000000) }>,
         "ppt"
     );
 }

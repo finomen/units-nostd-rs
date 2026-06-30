@@ -1,6 +1,7 @@
 use crate::Rational;
 use crate::composite_unit::{UnitAlias, UnitDiv, UnitMul, UnitPow, UnitScale};
-use crate::unit::Unit;
+use crate::unit::{Symbol, Unit};
+use typenum::Integer;
 
 pub const trait Mul {
     type Mul<U: crate::unit::Unit>: crate::unit::Unit + [const] Default
@@ -14,9 +15,9 @@ pub const trait Div {
 }
 
 pub const trait Pow {
-    type Pow<const POW: i32>: crate::unit::Unit + [const] Default
+    type Pow<Pow: Integer>: crate::unit::Unit + [const] Default
     where
-        UnitPow<Self, POW>: Unit;
+        UnitPow<Self, Pow>: Unit;
 }
 
 pub const trait Scale {
@@ -26,9 +27,9 @@ pub const trait Scale {
 }
 
 pub const trait Alias {
-    type Alias<const SYMBOL: &'static str>: crate::unit::Unit + [const] Default
+    type Alias<S: Symbol>: crate::unit::Unit + [const] Default
     where
-        UnitAlias<Self, SYMBOL>: Unit;
+        UnitAlias<Self, S>: Unit;
 }
 
 impl<U1> Mul for U1
@@ -55,10 +56,10 @@ impl<U1> Pow for U1
 where
     U1: Unit,
 {
-    type Pow<const POW: i32>
-        = UnitPow<U1, POW>
+    type Pow<Pow: Integer>
+        = UnitPow<U1, Pow>
     where
-        UnitPow<Self, POW>: Unit;
+        UnitPow<Self, Pow>: Unit;
 }
 
 impl<U1> Scale for U1
@@ -75,8 +76,8 @@ impl<U1> Alias for U1
 where
     U1: Unit,
 {
-    type Alias<const SYMBOL: &'static str>
-        = UnitAlias<U1, SYMBOL>
+    type Alias<S: Symbol>
+        = UnitAlias<U1, S>
     where
-        UnitAlias<Self, SYMBOL>: Unit;
+        UnitAlias<Self, S>: Unit;
 }
