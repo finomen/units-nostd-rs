@@ -469,6 +469,38 @@
 )]
 #![cfg_attr(feature = "molar_entropy", doc = "```")]
 //!
+#![cfg_attr(feature = "parts_per", doc = "## Parts-per")]
+#![cfg_attr(feature = "parts_per", doc = "```")]
+#![cfg_attr(
+    feature = "parts_per",
+    doc = "assert_eq!(format!(\"{}\", units::parts_per::Percent::new(10)), \"10%\");"
+)]
+#![cfg_attr(
+    feature = "parts_per",
+    doc = "assert_eq!(format!(\"{}\", units::parts_per::PerMillie::new(10)), \"10‰\");"
+)]
+#![cfg_attr(
+    feature = "parts_per",
+    doc = "assert_eq!(format!(\"{}\", units::parts_per::PerMiriad::new(10)), \"10‱\");"
+)]
+#![cfg_attr(
+    feature = "parts_per",
+    doc = "assert_eq!(format!(\"{}\", units::parts_per::PerCentiMillie::new(10)), \"10pcm\");"
+)]
+#![cfg_attr(
+    feature = "parts_per",
+    doc = "assert_eq!(format!(\"{}\", units::parts_per::PerMillion::new(10)), \"10ppm\");"
+)]
+#![cfg_attr(
+    feature = "parts_per",
+    doc = "assert_eq!(format!(\"{}\", units::parts_per::PerBillion::new(10)), \"10ppb\");"
+)]
+#![cfg_attr(
+    feature = "parts_per",
+    doc = "assert_eq!(format!(\"{}\", units::parts_per::PerTrillion::new(10)), \"10ppt\");"
+)]
+#![cfg_attr(feature = "parts_per", doc = "```")]
+//!
 #![cfg_attr(not(test), no_std)]
 #![allow(incomplete_features, clippy::neg_multiply)]
 #![feature(generic_const_exprs)]
@@ -1222,6 +1254,21 @@ pub mod molar_entropy {
         Div<U<Joules<()>>, Mul<U<Moles<()>>, U<Kelvins<()>>>>,
         "J/(mol·K)"
     );
+}
+
+#[cfg(feature = "parts_per")]
+pub mod parts_per {
+    use crate::unit::helpers::{Scale, Alias};
+    use crate::scale::Rational;
+    use crate::base_unit;
+
+    named_unit!(Percent, Alias::<Scale::<base_unit::Unitless, const {Rational::new(1, 100)}>, "%">, "%");
+    named_unit!(PerMillie, Alias::<Scale::<base_unit::Unitless, const {Rational::new(1, 1000)}>, "‰">, "‰");
+    named_unit!(PerMiriad, Alias::<Scale::<base_unit::Unitless, const {Rational::new(1, 10000)}>, "‱">, "‱");
+    named_unit!(PerCentiMillie, Alias::<Scale::<base_unit::Unitless, const {Rational::new(1, 100000)}>, "pcm">, "pcm");
+    named_unit!(PerMillion, Alias::<Scale::<base_unit::Unitless, const {Rational::new(1, 1000000)}>, "ppm">, "ppm");
+    named_unit!(PerBillion, Alias::<Scale::<base_unit::Unitless, const {Rational::new(1, 1000000000)}>, "ppb">, "ppb");
+    named_unit!(PerTrillion, Alias::<Scale::<base_unit::Unitless, const {Rational::new(1, 1000000000000)}>, "ppt">, "ppt");
 }
 
 #[cfg(all(
