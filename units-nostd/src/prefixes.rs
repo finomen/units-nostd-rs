@@ -11,7 +11,7 @@ macro_rules! metric_prefix {
         paste::paste! {
             pub(crate) const [<$alias _SCALE>] : Rational = Rational::new(10, 1).pow($pow);
             pub(crate) const [<$alias _SYMBOL>] : &'static str  = $symbol;
-            impl NamedScale for Scaled<const {[<$alias _SCALE>]}> {
+            impl NamedScale for Scaled< {[<$alias _SCALE>]}> {
                 const PREFIX: &'static str = [<$alias _SYMBOL>];
             }
         }

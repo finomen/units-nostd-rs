@@ -40,8 +40,12 @@ pub(crate) const trait NamedUnit {}
 impl<T> UnitTags for T
 where
     T: Unit,
-    ScaleTag<const { T::SYMBOL_SCALE }>: Sized,
+    ScaleTag<{ T::SYMBOL_SCALE }>: Sized,
 {
     type Unit = UnitTag<T::Normalized>;
-    type SymbolScale = ScaleTag<const { T::SYMBOL_SCALE }>;
+    type SymbolScale = ScaleTag<{ T::SYMBOL_SCALE }>;
+}
+
+pub trait Symbol {
+    const SYMBOL: &'static str;
 }

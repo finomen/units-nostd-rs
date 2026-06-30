@@ -388,6 +388,7 @@ mod tests {
     use alloc::format;
     use core::hash::Hash;
     use core::marker::PhantomData;
+    use typenum::P2;
 
     #[test]
     fn test_construction() {
@@ -431,7 +432,7 @@ mod tests {
             (Quantity::<i32, base_unit::Meters>::new(6)
                 * Quantity::<i32, base_unit::Meters>::new(3))
             .alias(),
-            Quantity::<i32, Pow<base_unit::Meters, 2>> {
+            Quantity::<i32, Pow<base_unit::Meters, P2>> {
                 value: 18,
                 _p: PhantomData,
             }
@@ -441,8 +442,8 @@ mod tests {
             Quantity::<
                 i32,
                 Mul<
-                    Scale<base_unit::Meters, const { Rational::new(1000, 1) }>,
-                    Alias<Scale<base_unit::Seconds, const { Rational::new(60, 1) }>, "min">,
+                    Scale<base_unit::Meters, { Rational::new(1000, 1) }>,
+                    Alias<Scale<base_unit::Seconds, { Rational::new(60, 1) }>, MinutesSymbol>,
                 >,
             > {
                 value: 18,
@@ -474,8 +475,8 @@ mod tests {
             Quantity::<
                 i32,
                 Div<
-                    Scale<base_unit::Meters, const { Rational::new(1000, 1) }>,
-                    Alias<Scale<base_unit::Seconds, const { Rational::new(60, 1) }>, "min">,
+                    Scale<base_unit::Meters, { Rational::new(1000, 1) }>,
+                    Alias<Scale<base_unit::Seconds, { Rational::new(60, 1) }>, MinutesSymbol>,
                 >,
             > {
                 value: 2,
@@ -527,7 +528,7 @@ mod tests {
             Err(ConversionError::ValueConversionError(NumCastFailed))
         );
         let sec8_res: Result<
-            Quantity<u8, Scale<base_unit::Seconds, const { Rational::new(1000, 1) }>>,
+            Quantity<u8, Scale<base_unit::Seconds, { Rational::new(1000, 1) }>>,
             _,
         > = Seconds::<u8>::new(1).try_convert();
         assert_eq!(
