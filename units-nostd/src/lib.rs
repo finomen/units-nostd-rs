@@ -1258,17 +1258,45 @@ pub mod molar_entropy {
 
 #[cfg(feature = "parts_per")]
 pub mod parts_per {
-    use crate::unit::helpers::{Scale, Alias};
-    use crate::scale::Rational;
     use crate::base_unit;
+    use crate::scale::Rational;
+    use crate::unit::helpers::{Alias, Scale};
 
-    named_unit!(Percent, Alias::<Scale::<base_unit::Unitless, const {Rational::new(1, 100)}>, "%">, "%");
-    named_unit!(PerMillie, Alias::<Scale::<base_unit::Unitless, const {Rational::new(1, 1000)}>, "‰">, "‰");
-    named_unit!(PerMiriad, Alias::<Scale::<base_unit::Unitless, const {Rational::new(1, 10000)}>, "‱">, "‱");
-    named_unit!(PerCentiMillie, Alias::<Scale::<base_unit::Unitless, const {Rational::new(1, 100000)}>, "pcm">, "pcm");
-    named_unit!(PerMillion, Alias::<Scale::<base_unit::Unitless, const {Rational::new(1, 1000000)}>, "ppm">, "ppm");
-    named_unit!(PerBillion, Alias::<Scale::<base_unit::Unitless, const {Rational::new(1, 1000000000)}>, "ppb">, "ppb");
-    named_unit!(PerTrillion, Alias::<Scale::<base_unit::Unitless, const {Rational::new(1, 1000000000000)}>, "ppt">, "ppt");
+    named_unit!(
+        Percent,
+        Alias::<Scale::<base_unit::Unitless, const { Rational::new(1, 100) }>, "%">,
+        "%"
+    );
+    named_unit!(
+        PerMillie,
+        Alias::<Scale::<base_unit::Unitless, const { Rational::new(1, 1000) }>, "‰">,
+        "‰"
+    );
+    named_unit!(
+        PerMiriad,
+        Alias::<Scale::<base_unit::Unitless, const { Rational::new(1, 10000) }>, "‱">,
+        "‱"
+    );
+    named_unit!(
+        PerCentiMillie,
+        Alias::<Scale::<base_unit::Unitless, const { Rational::new(1, 100000) }>, "pcm">,
+        "pcm"
+    );
+    named_unit!(
+        PerMillion,
+        Alias::<Scale::<base_unit::Unitless, const { Rational::new(1, 1000000) }>, "ppm">,
+        "ppm"
+    );
+    named_unit!(
+        PerBillion,
+        Alias::<Scale::<base_unit::Unitless, const { Rational::new(1, 1000000000) }>, "ppb">,
+        "ppb"
+    );
+    named_unit!(
+        PerTrillion,
+        Alias::<Scale::<base_unit::Unitless, const { Rational::new(1, 1000000000000) }>, "ppt">,
+        "ppt"
+    );
 }
 
 #[cfg(all(
