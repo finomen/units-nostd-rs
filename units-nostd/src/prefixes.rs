@@ -1,10 +1,19 @@
-use crate::scale::Scale;
+use crate::scale::Rational;
+
+pub(crate) struct Scaled<const S: Rational>;
+
+pub trait NamedScale {
+    const PREFIX: &'static str;
+}
 
 macro_rules! metric_prefix {
     ($alias:ident, $pow:literal, $symbol:literal) => {
         paste::paste! {
-            pub(crate) const [<$alias _SCALE>] : Scale = Scale::new(10, 1).pow($pow);
+            pub(crate) const [<$alias _SCALE>] : Rational = Rational::new(10, 1).pow($pow);
             pub(crate) const [<$alias _SYMBOL>] : &'static str  = $symbol;
+            impl NamedScale for Scaled<const {[<$alias _SCALE>]}> {
+                const PREFIX: &'static str = [<$alias _SYMBOL>];
+            }
         }
     };
 }
