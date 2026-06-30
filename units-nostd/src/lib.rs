@@ -45,7 +45,7 @@
 //! assert_eq!(units::temperature::Kelvins::new(10).value(), 10);
 //! assert_eq!(format!("{}", units::temperature::Kelvins::new(10)), "10K");
 //! assert_eq!(format!("{}", units::temperature::MilliKelvins::new(10)), "10mK");
-//! assert_eq!(format!("{}", units::temperature::DegreesCelsius::new(10)), "10℃");
+//! assert_eq!(format!("{}", units::temperature::DegreesCelsius::new(10)), "10°C");
 //! ```
 //!
 //! ## Electric current
@@ -776,7 +776,7 @@ pub mod temperature {
         }
     }
 
-    named_unit!(
+    unnamed_unit!(
         /// Unit for degrees Celsius.
         ///
         /// ```
@@ -793,7 +793,7 @@ pub mod temperature {
         /// let res : Result<units::temperature::DegreesCelsius<u64>, _> = units::temperature::MilliKelvins::new(293150).try_convert();
         /// assert_eq!(res, Ok(units::temperature::DegreesCelsius::<u64>::new(20)));
         /// ```
-        DegreesCelsius, base_unit::Celsius, "℃");
+        DegreesCelsius, base_unit::Celsius, "°C");
 
     #[cfg(test)]
     mod tests {

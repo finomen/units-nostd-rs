@@ -64,7 +64,7 @@ unit!(Grams, "g", U3);
 #[cfg(feature = "temperature")]
 unit!(Kelvins, "K", U4);
 #[cfg(feature = "temperature")]
-unit!(Celsius, "℃", U5);
+unit!(Celsius, "°C", U5);
 #[cfg(feature = "electric_current")]
 unit!(Amperes, "A", U6);
 #[cfg(feature = "luminous_intensity")]
